@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs><clipPath id="clip"><rect width="512" height="512" rx="116"/></clipPath></defs>
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="#E7F6EC"/>
+    <circle cx="380" cy="132" r="150" fill="#C7ECD3" opacity="0.75"/>
+    <circle cx="120" cy="410" r="120" fill="#C7ECD3" opacity="0.5"/>
+    <rect x="96" y="96" width="320" height="320" rx="34" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><rect x="103" y="103" width="306" height="306" rx="28" fill="#F3F1FB"/><rect x="110" y="110" width="139" height="139" rx="22" fill="#E9D5FF" stroke="#2E2A3A" stroke-width="9"/><rect x="263" y="110" width="139" height="139" rx="22" fill="#C4B5FD" stroke="#2E2A3A" stroke-width="9"/><rect x="110" y="263" width="139" height="139" rx="22" fill="#A78BFA" stroke="#2E2A3A" stroke-width="9"/><rect x="263" y="263" width="139" height="139" rx="22" fill="#22C55E" stroke="#2E2A3A" stroke-width="9"/><text x="179" y="179" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="76" font-weight="800" fill="#6B21A8">2</text><text x="303" y="179" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="76" font-weight="800" fill="#5B21B6">4</text><text x="179" y="303" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="76" font-weight="800" fill="#FFFFFF">8</text><text x="303" y="303" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="64" font-weight="800" fill="#FFFFFF">16</text>
+  </g>
+</svg>

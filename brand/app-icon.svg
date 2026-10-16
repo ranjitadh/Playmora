@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#A855F7"/>
+    <stop offset="0.55" stop-color="#7E22CE"/>
+    <stop offset="1" stop-color="#0284C7"/>
+  </linearGradient>
+  <linearGradient id="armGrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#38BDF8"/>
+    <stop offset="1" stop-color="#A855F7"/>
+  </linearGradient>
+  <radialGradient id="handGrad" cx="0.35" cy="0.3" r="0.8">
+    <stop offset="0" stop-color="#93E9FF"/>
+    <stop offset="1" stop-color="#0284C7"/>
+  </radialGradient>
+  <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+    <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#05070D" flood-opacity="0.35"/>
+  </filter>
+  <linearGradient id="puzzleGrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#22D3EE"/>
+    <stop offset="1" stop-color="#A855F7"/>
+  </linearGradient>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#232B54"/>
+      <stop offset="0.5" stop-color="#0B0F19"/>
+      <stop offset="1" stop-color="#0A1030"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="0.5" cy="0.36" r="0.7">
+      <stop offset="0" stop-color="#A855F7" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#A855F7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgGlow2" cx="0.7" cy="0.8" r="0.7">
+      <stop offset="0" stop-color="#38BDF8" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient></defs>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgGrad)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgGlow)"/>
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bgGlow2)"/>
+    <rect x="10" y="10" width="1004" height="1004" rx="220" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="6"/>
+    <g filter="url(#softShadow)"><g transform="translate(512,512) scale(0.9570) translate(-512,-510.5)">
+    <!-- controller body -->
+    <path d="M512 292 C636 292 716 320 760 366 C806 414 830 520 824 604 C820 668 792 714 736 722 C690 729 662 704 640 670 C622 642 592 624 556 624 L468 624 C432 624 402 642 384 670 C362 704 334 729 288 722 C232 714 204 668 200 604 C194 520 218 414 264 366 C308 320 388 292 512 292 Z" fill="url(#bodyGrad)" stroke="#241B3A" stroke-width="18" stroke-linejoin="round"/>
+    <!-- top gloss -->
+    <path d="M300 380 C340 322 420 300 512 300 C604 300 684 322 724 380
+             C660 348 590 338 512 338 C434 338 364 348 300 380 Z"
+          fill="#FFFFFF" opacity="0.42"/>
+    <ellipse cx="392" cy="372" rx="70" ry="26" fill="#FFFFFF" opacity="0.35"
+             transform="rotate(-14 392 372)"/>
+    
+    <g stroke="#241B3A" stroke-width="12" stroke-linejoin="round">
+      <rect x="250" y="596" width="104" height="36" rx="18" fill="#FFF7ED"/>
+      <rect x="284" y="562" width="36" height="104" rx="18" fill="#FFF7ED"/>
+    </g>
+    <g stroke="#241B3A" stroke-width="12">
+      <circle cx="742" cy="580" r="26" fill="#22D3EE"/>
+      <circle cx="782" cy="620" r="26" fill="#F59E0B"/>
+      <circle cx="742" cy="660" r="26" fill="#F43F5E"/>
+      <circle cx="702" cy="620" r="26" fill="#10B981"/>
+    </g>
+    <!-- face plate -->
+    <ellipse cx="512" cy="470" rx="176" ry="120" fill="#FFFFFF" opacity="0.10"/>
+    <!-- eyes -->
+    <g stroke="#241B3A" stroke-width="12">
+      <ellipse cx="424" cy="430" rx="66" ry="74" fill="#FFFFFF"/>
+      <ellipse cx="600" cy="430" rx="66" ry="74" fill="#FFFFFF"/>
+    </g>
+    <ellipse cx="430" cy="446" rx="34" ry="40" fill="#241B3A"/>
+    <ellipse cx="606" cy="446" rx="34" ry="40" fill="#241B3A"/>
+    <circle cx="418" cy="430" r="15" fill="#FFFFFF"/>
+    <circle cx="594" cy="430" r="15" fill="#FFFFFF"/>
+    <circle cx="446" cy="462" r="7" fill="#FFFFFF" opacity="0.8"/>
+    <circle cx="622" cy="462" r="7" fill="#FFFFFF" opacity="0.8"/>
+    <!-- cheeks -->
+    <ellipse cx="352" cy="512" rx="34" ry="22" fill="#F43F5E" opacity="0.55"/>
+    <ellipse cx="672" cy="512" rx="34" ry="22" fill="#F43F5E" opacity="0.55"/>
+    <!-- mouth -->
+    <path d="M456 496 C470 566 554 566 568 496 Z" fill="#241B3A"/>
+    <path d="M486 546 C500 578 540 578 554 546 C536 534 504 534 486 546 Z" fill="#F43F5E"/></g></g>
+    <g opacity="0.95">
+      <path d="M 190 176 C 199.6 196.4 199.6 196.4 220 206 C 199.6 215.6 199.6 215.6 190 236 C 180.4 215.6 180.4 215.6 160 206 C 180.4 196.4 180.4 196.4 190 176 Z" fill="#FFFFFF"/>
+      <path d="M 842 774 C 850.32 791.68 850.32 791.68 868 800 C 850.32 808.32 850.32 808.32 842 826 C 833.68 808.32 833.68 808.32 816 800 C 833.68 791.68 833.68 791.68 842 774 Z" fill="#22D3EE"/>
+      <path d="M846.00 148.00 L857.17 174.63 L885.94 177.02 L864.07 195.87 L870.69 223.98 L846.00 209.00 L821.31 223.98 L827.93 195.87 L806.06 177.02 L834.83 174.63 Z" fill="#FCD34D" stroke="#241B3A" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M 168 748 C 175.68 764.32 175.68 764.32 192 772 C 175.68 779.68 175.68 779.68 168 796 C 160.32 779.68 160.32 779.68 144 772 C 160.32 764.32 160.32 764.32 168 748 Z" fill="#F472B6"/>
+    </g></svg>

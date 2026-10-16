@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs><clipPath id="clip"><rect width="512" height="512" rx="116"/></clipPath></defs>
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="#E7F6EC"/>
+    <circle cx="380" cy="132" r="150" fill="#C7ECD3" opacity="0.75"/>
+    <circle cx="120" cy="410" r="120" fill="#C7ECD3" opacity="0.5"/>
+    <rect x="120" y="220" width="78" height="78" rx="12" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><rect x="212" y="220" width="78" height="78" rx="12" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><rect x="304" y="220" width="78" height="78" rx="12" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><rect x="306" y="220" width="78" height="78" rx="12" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><text x="159" y="259" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="48" font-weight="800" fill="#10B981">W</text><text x="251" y="259" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="48" font-weight="800" fill="#F59E0B">O</text><text x="343" y="259" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="48" font-weight="800" fill="#2E2A3A">R</text>
+  </g>
+</svg>

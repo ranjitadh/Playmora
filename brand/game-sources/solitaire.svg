@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs><clipPath id="clip"><rect width="512" height="512" rx="116"/></clipPath></defs>
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="#FFF3E0"/>
+    <circle cx="380" cy="132" r="150" fill="#FFE1B8" opacity="0.75"/>
+    <circle cx="120" cy="410" r="120" fill="#FFE1B8" opacity="0.5"/>
+    <rect x="120" y="170" width="150" height="200" rx="20" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><text x="195" y="250" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="60" font-weight="800" fill="#F43F5E">A</text><text x="195" y="320" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="44" font-weight="800" fill="#F43F5E">♥</text><rect x="200" y="150" width="150" height="200" rx="20" fill="#FFFFFF" stroke="#2E2A3A" stroke-width="9"/><text x="275" y="230" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="60" font-weight="800" fill="#2E2A3A">K</text><text x="275" y="300" text-anchor="middle" dominant-baseline="middle" font-family="Arial Rounded MT Bold,system-ui,sans-serif" font-size="44" font-weight="800" fill="#2E2A3A">♠</text>
+  </g>
+</svg>
