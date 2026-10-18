@@ -6,14 +6,19 @@ import {
   TouchableOpacity,
   Modal,
   BackHandler,
-  SafeAreaView,
   ScrollView,
+  AppState,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GameDefinition } from '../types';
-import { getGameComponent } from '../registry';
+import { canResume, getGameComponent } from '../registry';
+import { PauseOverlay } from './PauseOverlay';
+import { ProgressState, isGameInteractive, resolveGameOverHeader, resolveOverlayState } from './overlayState';
 import { isMultiplayerGame } from '../catalog';
 import { Colors } from '../../theme/colors';
+import { ProgressRepository } from '../../database/progressRepository';
 import { ScoreRepository } from '../../database/scoreRepository';
 import { SettingsRepository } from '../../database/settingsRepository';
 import { AchievementService } from '../../services/achievementService';
@@ -36,7 +41,6 @@ interface GameContainerProps {
 
 export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) => {
   const [sessionKey, setSessionKey] = useState(1);
-  const [currentScore, setCurrentScore] = useState(0);
   const [bestScore, setBestScore] = useState<BestScore>(null);
   const [isGameOverModalVisible, setIsGameOverModalVisible] = useState(false);
   const [finalScore, setFinalScore] = useState(0);
@@ -45,13 +49,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
   const [isMuted, setIsMuted] = useState(false);
   const [isHapticsEnabled, setIsHapticsEnabled] = useState(true);
   const [isHowToPlayVisible, setIsHowToPlayVisible] = useState(false);
+  const [isManuallyPaused, setIsManuallyPaused] = useState(false);
+  const [isBackgrounded, setIsBackgrounded] = useState(false);
+
+  const resumable = canResume(game.id);
+  const [progressState, setProgressState] = useState<ProgressState>(
+    resumable ? 'loading' : 'ready'
+  );
+  const [pendingProgress, setPendingProgress] = useState<unknown>(undefined);
+  const [resumeState, setResumeState] = useState<unknown>(undefined);
 
   // A session may record GAME OVER only once; restart fully resets it.
   const gameOverHandledRef = useRef(false);
 
+  // A session is paused when the player pauses it or the app leaves the
+  // foreground. Games receive this so their loops freeze mid-play.
+  const isPaused = isManuallyPaused || isBackgrounded;
+
   const isMultiplayer = isMultiplayerGame(game);
   const bestLabel = getBestScoreLabel(game.scoreType);
   const finalLabel = getFinalScoreLabel(game.scoreType);
+  const gameOverHeader = resolveGameOverHeader(isNewHighScore, didWin);
 
   // Initialize sound/haptics from persisted settings and keep services in sync.
   useEffect(() => {
@@ -88,10 +106,41 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
     gameOverHandledRef.current = false;
     setIsGameOverModalVisible(false);
     setIsHowToPlayVisible(false);
-    setCurrentScore(0);
+    setIsManuallyPaused(false);
     setFinalScore(0);
     setIsNewHighScore(false);
     setDidWin(false);
+  }, [game.id]);
+
+  // Load any resumable snapshot for the current game.
+  useEffect(() => {
+    if (!canResume(game.id)) {
+      setProgressState('ready');
+      setPendingProgress(undefined);
+      setResumeState(undefined);
+      return;
+    }
+    let cancelled = false;
+    setProgressState('loading');
+    setPendingProgress(undefined);
+    setResumeState(undefined);
+    ProgressRepository.loadProgress(game.id)
+      .then((saved) => {
+        if (cancelled) return;
+        if (saved != null) {
+          setPendingProgress(saved);
+          setProgressState('prompt');
+        } else {
+          setProgressState('ready');
+        }
+      })
+      .catch((e) => {
+        console.warn('Failed to load game progress:', e);
+        if (!cancelled) setProgressState('ready');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [game.id]);
 
   // Android back button handling
@@ -104,10 +153,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
     return () => backHandler.remove();
   }, [onExit]);
 
-  const handleScoreUpdate = useCallback((score: number) => {
-    if (gameOverHandledRef.current) return;
-    setCurrentScore(score);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setIsBackgrounded(state !== 'active');
+    });
+    return () => sub.remove();
   }, []);
+
+  // Games push their live score here so a session can track progress, but only
+  // the final result is persisted. Keep this callback stable and side-effect
+  // free: previously it stored the score in state, which re-rendered the whole
+  // game tree on every score tick for a value nothing ever read.
+  const handleScoreUpdate = useCallback((_score: number) => {}, []);
 
   // Shared finish path for both losses and wins. A session may finish only once;
   // whichever of onGameOver/onGameWin arrives first wins.
@@ -118,6 +175,11 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
 
       setFinalScore(score);
       setDidWin(won);
+
+      // A finished session is no longer resumable.
+      ProgressRepository.clearProgress(game.id).catch((e) =>
+        console.warn('Failed to clear progress:', e)
+      );
 
       try {
         // Record score in the local database using the game's score mode.
@@ -177,12 +239,46 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
     gameOverHandledRef.current = false;
     setIsGameOverModalVisible(false);
     setIsHowToPlayVisible(false);
-    setCurrentScore(0);
+    setIsManuallyPaused(false);
     setFinalScore(0);
     setIsNewHighScore(false);
     setDidWin(false);
+    setResumeState(undefined);
+    // Restarting discards any snapshot, so clear the pending prompt too. This
+    // keeps the header restart button safe to use while the resume prompt (or
+    // the loading spinner) is on screen.
+    setPendingProgress(undefined);
+    setProgressState('ready');
+    ProgressRepository.clearProgress(game.id).catch((e) =>
+      console.warn('Failed to clear progress:', e)
+    );
     setSessionKey((prev) => prev + 1);
-  }, []);
+  }, [game.id]);
+
+  const togglePause = useCallback(() => setIsManuallyPaused((prev) => !prev), []);
+
+  const handleSaveProgress = useCallback(
+    (state: unknown) => {
+      ProgressRepository.saveProgress(game.id, state).catch((e) =>
+        console.warn('Failed to save progress:', e)
+      );
+    },
+    [game.id]
+  );
+
+  const continueSavedGame = useCallback(() => {
+    setResumeState(pendingProgress);
+    setProgressState('ready');
+  }, [pendingProgress]);
+
+  const discardSavedGame = useCallback(() => {
+    ProgressRepository.clearProgress(game.id).catch((e) =>
+      console.warn('Failed to clear progress:', e)
+    );
+    setPendingProgress(undefined);
+    setResumeState(undefined);
+    setProgressState('ready');
+  }, [game.id]);
 
   const toggleMute = useCallback(() => {
     const nextMuted = !isMuted;
@@ -200,6 +296,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
   const GameComponent = getGameComponent(game.id);
 
   const bestDisplay = formatBestScore(bestScore, game.scoreType);
+  const gameReady = isGameInteractive(progressState);
+  const overlay = resolveOverlayState({
+    progressState,
+    isGameOverModalVisible,
+    isHowToPlayVisible,
+    isPaused,
+    isMultiplayer,
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -248,6 +352,29 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
           </View>
 
           <View style={styles.rightActions}>
+            {GameComponent && gameReady ? (
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={togglePause}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID="game-pause"
+                accessibilityRole="button"
+                accessibilityLabel={isPaused ? 'Resume game' : 'Pause game'}
+                accessibilityHint={
+                  isManuallyPaused
+                    ? `Resumes ${game.title}`
+                    : `Pauses ${game.title}`
+                }
+                accessibilityState={{ expanded: isPaused }}
+              >
+                <Ionicons
+                  name={isManuallyPaused ? 'play' : 'pause'}
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
               style={styles.headerBtn}
               onPress={toggleMute}
@@ -265,17 +392,19 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
               />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={openHowToPlay}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              testID="game-how-to-play"
-              accessibilityRole="button"
-              accessibilityLabel="How to play"
-              accessibilityHint={`Opens instructions and rules for ${game.title}`}
-            >
-              <Ionicons name="help-circle-outline" size={22} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            {gameReady ? (
+              <TouchableOpacity
+                style={styles.headerBtn}
+                onPress={openHowToPlay}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID="game-how-to-play"
+                accessibilityRole="button"
+                accessibilityLabel="How to play"
+                accessibilityHint={`Opens instructions and rules for ${game.title}`}
+              >
+                <Ionicons name="help-circle-outline" size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={styles.headerBtn}
@@ -300,16 +429,25 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
           accessibilityHint={game.instructions}
         >
           {GameComponent ? (
-            <GameComponent
-              key={`game-${game.id}-${sessionKey}`}
-              gameId={game.id}
-              onScoreUpdate={handleScoreUpdate}
-              onGameOver={handleGameOver}
-              onGameWin={handleGameWin}
-              onExit={onExit}
-              isMuted={isMuted}
-              isHapticsEnabled={isHapticsEnabled}
-            />
+            gameReady ? (
+              <GameComponent
+                key={`game-${game.id}-${sessionKey}`}
+                gameId={game.id}
+                onScoreUpdate={handleScoreUpdate}
+                onGameOver={handleGameOver}
+                onGameWin={handleGameWin}
+                onExit={onExit}
+                isMuted={isMuted}
+                isHapticsEnabled={isHapticsEnabled}
+                isPaused={isPaused}
+                initialProgress={resumeState}
+                onSaveProgress={resumable ? handleSaveProgress : undefined}
+              />
+            ) : (
+              <View style={styles.progressLoading} testID="game-progress-loading">
+                <ActivityIndicator color={Colors.primary} />
+              </View>
+            )
           ) : (
             <View style={styles.unimplementedContainer}>
               <Ionicons name="construct-outline" size={48} color={Colors.accentGold} />
@@ -331,7 +469,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
 
         {/* How to Play */}
         <Modal
-          visible={isHowToPlayVisible}
+          visible={overlay === 'howToPlay'}
           transparent={true}
           animationType="fade"
           onRequestClose={closeHowToPlay}
@@ -408,27 +546,27 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
 
         {/* Game Over Modal */}
         <Modal
-          visible={isGameOverModalVisible && !isMultiplayer}
+          visible={overlay === 'gameOver'}
           transparent={true}
           animationType="fade"
-          onRequestClose={() => setIsGameOverModalVisible(false)}
+          onRequestClose={onExit}
         >
           <View style={styles.modalOverlay} accessibilityViewIsModal={true}>
             <View style={styles.modalCard}>
-              {isNewHighScore ? (
+              {gameOverHeader.showBestBanner && (
                 <View style={styles.trophyBanner}>
                   <Ionicons name="trophy" size={32} color={Colors.accentGold} />
                   <Text style={styles.newPbText}>NEW PERSONAL BEST!</Text>
                 </View>
-              ) : (
-                <Text
-                  style={styles.modalGameOverText}
-                  accessibilityRole="header"
-                  testID="gameover-title"
-                >
-                  {didWin ? 'YOU WIN!' : 'GAME OVER'}
-                </Text>
               )}
+
+              <Text
+                style={styles.modalGameOverText}
+                accessibilityRole="header"
+                testID="gameover-title"
+              >
+                {gameOverHeader.title}
+              </Text>
 
               <View style={styles.scoreRow}>
                 <View
@@ -438,7 +576,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
                   accessibilityLabel={`Final ${finalLabel.toLowerCase()} ${finalScore}`}
                 >
                   <Text style={styles.scoreBoxLabel}>FINAL {finalLabel}</Text>
-                  <Text style={styles.scoreBoxValue}>{finalScore}</Text>
+                  <Text style={styles.scoreBoxValue} numberOfLines={1} adjustsFontSizeToFit>
+                    {finalScore}
+                  </Text>
                 </View>
 
                 <View
@@ -452,7 +592,9 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
                   }
                 >
                   <Text style={styles.scoreBoxLabel}>{bestLabel}</Text>
-                  <Text style={styles.scoreBoxValue}>{bestDisplay}</Text>
+                  <Text style={styles.scoreBoxValue} numberOfLines={1} adjustsFontSizeToFit>
+                    {bestDisplay}
+                  </Text>
                 </View>
               </View>
 
@@ -466,7 +608,7 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
                   accessibilityLabel="Play again"
                   accessibilityHint={`Restarts ${game.title} for a new round`}
                 >
-                  <Ionicons name="play" size={20} color="#000" />
+                  <Ionicons name="play" size={20} color={Colors.textInverse} />
                   <Text style={styles.playAgainText}>Play Again</Text>
                 </TouchableOpacity>
 
@@ -485,6 +627,65 @@ export const GameContainer: React.FC<GameContainerProps> = ({ game, onExit }) =>
             </View>
           </View>
         </Modal>
+
+        {/* Resume prompt for resumable games with a saved snapshot */}
+        <Modal
+          visible={overlay === 'resume'}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={continueSavedGame}
+        >
+          <View style={styles.modalOverlay} accessibilityViewIsModal={true}>
+            <View style={styles.modalCard}>
+              <Ionicons name="bookmark" size={30} color={Colors.primary} />
+              <Text
+                style={styles.modalGameOverText}
+                accessibilityRole="header"
+                testID="resume-title"
+              >
+                RESUME GAME?
+              </Text>
+              <Text style={styles.resumeBody}>
+                You have an unfinished game of {game.title}.
+              </Text>
+
+              <View style={styles.modalActionButtons}>
+                <TouchableOpacity
+                  style={styles.playAgainBtn}
+                  onPress={continueSavedGame}
+                  activeOpacity={0.8}
+                  testID="progress-continue"
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue saved game"
+                  accessibilityHint={`Restores your saved game of ${game.title}`}
+                >
+                  <Ionicons name="play" size={20} color={Colors.textInverse} />
+                  <Text style={styles.playAgainText}>Continue</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.exitBtn}
+                  onPress={discardSavedGame}
+                  activeOpacity={0.8}
+                  testID="progress-new-game"
+                  accessibilityRole="button"
+                  accessibilityLabel="Start a new game"
+                  accessibilityHint="Discards the saved game and starts fresh"
+                >
+                  <Text style={styles.exitText}>New Game</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Pause (manual or app backgrounded) */}
+        <PauseOverlay
+          visible={overlay === 'pause'}
+          gameTitle={game.title}
+          onResume={() => setIsManuallyPaused(false)}
+          onExit={onExit}
+        />
       </View>
     </SafeAreaView>
   );
@@ -549,6 +750,19 @@ const styles = StyleSheet.create({
   gameContent: {
     flex: 1,
   },
+  progressLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumeBody: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
   unimplementedContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -578,7 +792,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backBtnText: {
-    color: '#000',
+    color: Colors.textInverse,
     fontWeight: '800',
     fontSize: 14,
   },
@@ -669,7 +883,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   howtoDoneText: {
-    color: '#000',
+    color: Colors.textInverse,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -752,7 +966,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   playAgainText: {
-    color: '#000',
+    color: Colors.textInverse,
     fontSize: 15,
     fontWeight: '800',
   },

@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionText: {
-    color: '#000',
+    color: Colors.textInverse,
     fontSize: 14,
     fontWeight: '800',
   },

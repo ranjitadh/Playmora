@@ -49,6 +49,13 @@ export const SCHEMA_V1 = `
     completed_at INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS game_progress (
+    game_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_scores_game_id ON game_scores(game_id);
   CREATE INDEX IF NOT EXISTS idx_scores_played_at ON game_scores(played_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_progress_updated_at ON game_progress(updated_at DESC);
 `;

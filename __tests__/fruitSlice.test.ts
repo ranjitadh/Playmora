@@ -85,8 +85,23 @@ describe('Fruit Slice — slicing', () => {
   it('scores a multi-fruit swipe in one pass', () => {
     const s = stateWith([entity({ id: 1, x: 0.4, y: 0.5 }), entity({ id: 2, x: 0.6, y: 0.5 })]);
     const next = sliceSegment(s, 0, 0.5, 1, 0.5);
-    expect(next.sliced).toBe(2);
     expect(next.score).toBe(20);
+    expect(next.sliced).toBe(2);
+  });
+
+  it('stops simulating once the run is over', () => {
+    const lost = stateWith([entity({ y: 0.5, vy: -0.5 })], { outcome: 'lost' });
+    expect(stepPhysics(lost, 0.05)).toBe(lost);
+    const won = stateWith([entity({ y: 0.5, vy: -0.5 })], { outcome: 'won' });
+    expect(stepPhysics(won, 0.05)).toBe(won);
+  });
+
+  it('stops spawning once the run is over', () => {
+    const lost = stateWith([], { outcome: 'lost' });
+    expect(spawnEntity(lost).entities).toHaveLength(0);
+    expect(spawnEntity(lost)).toBe(lost);
+    const won = stateWith([], { outcome: 'won' });
+    expect(spawnEntity(won, { forceBomb: true })).toBe(won);
   });
 
   it('ends the run when a bomb is sliced', () => {

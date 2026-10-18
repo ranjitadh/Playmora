@@ -18,6 +18,7 @@ class MemoryDatabaseDriver implements IDatabaseDriver {
     achievements: [],
     user_settings: [],
     daily_challenges: [],
+    game_progress: [],
   };
 
   async execAsync(sql: string): Promise<void> {
@@ -117,6 +118,27 @@ class MemoryDatabaseDriver implements IDatabaseDriver {
       return { lastInsertRowId: 1, changes: 1 };
     }
 
+    if (s.startsWith('insert or replace into game_progress')) {
+      const idx = this.tables.game_progress.findIndex((p) => p.game_id === params[0]);
+      const record = {
+        game_id: params[0],
+        state: params[1],
+        updated_at: params[2],
+      };
+      if (idx >= 0) {
+        this.tables.game_progress[idx] = record;
+      } else {
+        this.tables.game_progress.push(record);
+      }
+      return { lastInsertRowId: 1, changes: 1 };
+    }
+
+    if (s.startsWith('delete from game_progress')) {
+      const initial = this.tables.game_progress.length;
+      this.tables.game_progress = this.tables.game_progress.filter((p) => p.game_id !== params[0]);
+      return { lastInsertRowId: 0, changes: initial - this.tables.game_progress.length };
+    }
+
     return { lastInsertRowId: 0, changes: 0 };
   }
 
@@ -146,6 +168,9 @@ class MemoryDatabaseDriver implements IDatabaseDriver {
     if (s.includes('from daily_challenges')) {
       return [...this.tables.daily_challenges] as unknown as T[];
     }
+    if (s.includes('from game_progress')) {
+      return [...this.tables.game_progress] as unknown as T[];
+    }
     return [];
   }
 
@@ -171,6 +196,10 @@ class MemoryDatabaseDriver implements IDatabaseDriver {
     if (s.includes('from achievements where id')) {
       const a = this.tables.achievements.find((x) => x.id === params[0]);
       return (a as unknown as T) || null;
+    }
+    if (s.includes('from game_progress where game_id')) {
+      const p = this.tables.game_progress.find((x) => x.game_id === params[0]);
+      return (p as unknown as T) || null;
     }
 
     const all = await this.getAllAsync<T>(sql, params);

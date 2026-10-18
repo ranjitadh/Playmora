@@ -30,6 +30,7 @@ import {
 } from './snakesAndLaddersLogic';
 import { cellCenter, ladderGeometry, pipsFor, snakePath } from './boardGeometry';
 import { BoardResultOverlay, boardStyles } from '../shared/boardUi';
+import { usePausedRef } from '../shared/usePausedRef';
 
 export type { PlayerType } from './snakesAndLaddersLogic';
 
@@ -70,6 +71,7 @@ export const SnakesAndLaddersGame: React.FC<GameSessionProps> = ({
   onExit,
   isMuted,
   isHapticsEnabled,
+  isPaused,
 }) => {
   const [playerTypes, setPlayerTypes] = useState<PlayerType[]>(['human', 'human']);
   const [setupDone, setSetupDone] = useState(false);
@@ -89,6 +91,7 @@ export const SnakesAndLaddersGame: React.FC<GameSessionProps> = ({
   const placed = useRef<boolean[]>([]);
   const rollingRef = useRef(false);
   const shuffleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pausedRef = usePausedRef(isPaused);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOver = game.outcome !== 'in_progress';
@@ -198,7 +201,9 @@ export const SnakesAndLaddersGame: React.FC<GameSessionProps> = ({
         }),
       ])
     ).start();
-    shuffleRef.current = setInterval(() => setFace(1 + Math.floor(Math.random() * 6)), 70);
+    shuffleRef.current = setInterval(() => {
+      if (!pausedRef.current) setFace(1 + Math.floor(Math.random() * 6));
+    }, 70);
 
     rollTimeoutRef.current = setTimeout(() => {
       if (shuffleRef.current) {

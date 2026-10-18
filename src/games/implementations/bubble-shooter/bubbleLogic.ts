@@ -14,6 +14,18 @@ export const ROWS = 12;
 export const COLORS = 5;
 export const MISS_LIMIT = 4;
 
+/** Grid-space origin of a shot (the centre column, bottom of the board). */
+export const SHOT_ORIGIN_X = (COLS - 1) / 2;
+export const SHOT_ORIGIN_Y = ROWS - 0.5;
+
+/** Minimum pointer travel (px) for a drag to count as an intentional aim. */
+export const MIN_AIM_DISTANCE = 12;
+
+/** True when a pointer has moved far enough to be a deliberate aim, not a tap. */
+export function isSignificantAim(dx: number, dy: number): boolean {
+  return Math.hypot(dx, dy) >= MIN_AIM_DISTANCE;
+}
+
 export type Cell = number | null;
 export type Grid = Cell[][];
 
@@ -161,19 +173,20 @@ export function pushRow(grid: Grid): Grid {
  * Marches the shot from (startX,startY) in direction (dx,dy) until it meets an
  * occupied cell or the edge, returning the free cell it should settle in.
  */
-export function simulateShot(
+export function simulatePath(
   grid: Grid,
   startX: number,
   startY: number,
   dx: number,
   dy: number
-): [number, number] | null {
-  const len = Math.hypot(dx, dy) || 1;
+): [number, number][] {
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return [];
   const stepX = (dx / len) * 0.06;
   const stepY = (dy / len) * 0.06;
   let x = startX;
   let y = startY;
-  let last: [number, number] | null = null;
+  const path: [number, number][] = [];
 
   for (let i = 0; i < 800; i++) {
     x += stepX;
@@ -183,17 +196,34 @@ export function simulateShot(
     if (r >= ROWS) continue;
     const c = Math.round(x - offsetOf(r));
     if (c < 0 || c >= COLS) break;
-    if (grid[r][c] !== null) return last;
-    last = [r, c];
+    if (grid[r][c] !== null) break;
+    const prev = path[path.length - 1];
+    if (!prev || prev[0] !== r || prev[1] !== c) path.push([r, c]);
   }
-  return last;
+  return path;
+}
+
+export function simulateShot(
+  grid: Grid,
+  startX: number,
+  startY: number,
+  dx: number,
+  dy: number
+): [number, number] | null {
+  const path = simulatePath(grid, startX, startY, dx, dy);
+  return path.length > 0 ? path[path.length - 1] : null;
 }
 
 /** Fires the current bubble: lands it, resolves matches and advances the queue. */
-export function fire(state: BubbleState, dirX: number, dirY: number): BubbleState {
+export function fire(
+  state: BubbleState,
+  dirX: number,
+  dirY: number,
+  startX: number = SHOT_ORIGIN_X,
+  startY: number = SHOT_ORIGIN_Y
+): BubbleState {
   if (state.outcome !== 'in_progress') return state;
-  const start = { x: (COLS - 1) / 2, y: ROWS - 0.5 };
-  const landing = simulateShot(state.grid, start.x, start.y, dirX, dirY);
+  const landing = simulateShot(state.grid, startX, startY, dirX, dirY);
   if (!landing) return state;
   const [r, c] = landing;
 

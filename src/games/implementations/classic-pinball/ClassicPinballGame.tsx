@@ -5,6 +5,7 @@ import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
+import { usePausedRef } from '../shared/usePausedRef';
 import { Retro } from '../shared/gameTheme';
 import {
   BALL_R,
@@ -17,7 +18,7 @@ import {
 
 const FLIPPER_LEN = 0.2;
 
-export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
+export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 320, h: 480 });
   const [state, setState] = useState<PinballState>(createPinball);
   const flipRef = useRef({ left: false, right: false });
@@ -25,6 +26,7 @@ export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
   const lastHitsRef = useRef(0);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -45,7 +47,7 @@ export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
       let dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
       if (dt > 0.05) dt = 0.05;
-      setState((s) => step(s, flipRef.current, dt));
+      if (!pausedRef.current) setState((s) => step(s, flipRef.current, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -70,12 +72,6 @@ export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
 
   const setFlip = useCallback((side: 'left' | 'right', value: boolean) => {
     flipRef.current = { ...flipRef.current, [side]: value };
-  }, []);
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastHitsRef.current = 0;
-    setState(createPinball());
   }, []);
 
   const px = (n: number) => n * area.w;
@@ -137,20 +133,6 @@ export const ClassicPinballGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
             borderColor: Retro.ink,
           }}
         />
-
-        {state.outcome === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.resultCard}>
-              <Ionicons name="game-controller" size={40} color={Colors.primary} />
-              <Text style={styles.resultTitle}>Game Over</Text>
-              <Text style={styles.resultSub}>{`${state.score} pts · ${state.hits} bumper hits`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Retro.plastic} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.controls}>
@@ -193,12 +175,6 @@ const styles = StyleSheet.create({
   table: { flex: 1, backgroundColor: Retro.screen, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: Retro.screenEdge },
   bumper: { position: 'absolute' },
   flipper: { position: 'absolute', borderRadius: 5 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(47,44,28,0.55)' },
-  resultCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Colors.textPrimary, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Retro.ink, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 20 },
-  primaryBtnText: { color: Retro.plastic, fontSize: 15, fontWeight: '800' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 },
   flipBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Retro.plasticDark, borderWidth: 2, borderColor: Retro.ink, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 18 },
   flipText: { color: Retro.ink, fontSize: 14, fontWeight: '800' },

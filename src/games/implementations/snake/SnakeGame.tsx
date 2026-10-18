@@ -13,12 +13,10 @@ import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
+import { usePausedRef } from '../shared/usePausedRef';
+import { Direction, GRID_SIZE, Point, stepSnake } from './snakeLogic';
 
-type Point = [number, number];
-type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 type Difficulty = 'easy' | 'medium' | 'hard';
-
-const GRID_SIZE = 16;
 
 const DIFFICULTY_CONFIG: Record<
   Difficulty,
@@ -40,27 +38,12 @@ const INITIAL_FOOD: Point = [8, 11];
 
 let rememberedDifficulty: Difficulty = 'medium';
 
-function getRandomFoodCoord(snake: Point[]): Point {
-  const occupied = new Set(snake.map(([r, c]) => `${r},${c}`));
-  const available: Point[] = [];
-
-  for (let r = 0; r < GRID_SIZE; r++) {
-    for (let c = 0; c < GRID_SIZE; c++) {
-      if (!occupied.has(`${r},${c}`)) {
-        available.push([r, c]);
-      }
-    }
-  }
-
-  if (available.length === 0) return [0, 0];
-  return available[Math.floor(Math.random() * available.length)];
-}
-
 export const SnakeGame: React.FC<GameSessionProps> = ({
   onScoreUpdate,
   onGameOver,
   isMuted,
   isHapticsEnabled,
+  isPaused,
 }) => {
   const [snake, setSnake] = useState<Point[]>(
     INITIAL_SNAKE.map((p) => [...p] as Point)
@@ -74,6 +57,11 @@ export const SnakeGame: React.FC<GameSessionProps> = ({
   const nextDirectionRef = useRef<Direction>('RIGHT');
   const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speedRef = useRef(DIFFICULTY_CONFIG[rememberedDifficulty].base);
+  const pausedRef = usePausedRef(isPaused);
+  // The snake body changes every tick; the loop keeps its own source of truth
+  // in a ref so it never has to run side effects inside a state updater (which
+  // React is free to replay, double-firing sounds, haptics and onGameOver).
+  const snakeRef = useRef<Point[]>(INITIAL_SNAKE.map((p) => [...p] as Point));
 
   const changeDirection = useCallback((newDir: Direction) => {
     const current = directionRef.current;
@@ -112,69 +100,35 @@ export const SnakeGame: React.FC<GameSessionProps> = ({
 
   // Game loop tick
   const tick = useCallback(() => {
-    if (isGameOver) return;
+    if (isGameOver || pausedRef.current) return;
 
-    setSnake((prevSnake) => {
-      directionRef.current = nextDirectionRef.current;
-      const head = prevSnake[0];
-      let newHead: Point = [head[0], head[1]];
+    directionRef.current = nextDirectionRef.current;
+    const result = stepSnake(snakeRef.current, food, score, directionRef.current);
 
-      switch (directionRef.current) {
-        case 'UP':
-          newHead[0] -= 1;
-          break;
-        case 'DOWN':
-          newHead[0] += 1;
-          break;
-        case 'LEFT':
-          newHead[1] -= 1;
-          break;
-        case 'RIGHT':
-          newHead[1] += 1;
-          break;
-      }
+    if (result.died) {
+      handleEnd(score);
+      return;
+    }
 
-      // Wrap around walls — the snake never dies on an edge
-      if (newHead[0] < 0) newHead[0] = GRID_SIZE - 1;
-      else if (newHead[0] >= GRID_SIZE) newHead[0] = 0;
-      if (newHead[1] < 0) newHead[1] = GRID_SIZE - 1;
-      else if (newHead[1] >= GRID_SIZE) newHead[1] = 0;
+    snakeRef.current = result.snake;
+    setSnake(result.snake);
 
-      const willEat = newHead[0] === food[0] && newHead[1] === food[1];
+    // Check food consumption
+    if (result.ate) {
+      setScore(result.score);
+      setFood(result.food);
+      onScoreUpdate(result.score);
 
-      // Self collision (the tail cell frees up unless the snake is growing)
-      const bodyToCheck = willEat ? prevSnake : prevSnake.slice(0, -1);
-      for (let i = 0; i < bodyToCheck.length; i++) {
-        if (bodyToCheck[i][0] === newHead[0] && bodyToCheck[i][1] === newHead[1]) {
-          handleEnd(score);
-          return prevSnake;
-        }
-      }
+      if (!isMuted) audioService.playSound('pop');
+      if (isHapticsEnabled) hapticsService.lightImpact();
 
-      const newSnake = [newHead, ...prevSnake];
-
-      // Check food consumption
-      if (willEat) {
-        const newScore = score + 10;
-        setScore(newScore);
-        onScoreUpdate(newScore);
-
-        if (!isMuted) audioService.playSound('pop');
-        if (isHapticsEnabled) hapticsService.lightImpact();
-
-        // Speed ramp up, scaled to the chosen difficulty
-        const cfg = DIFFICULTY_CONFIG[difficulty];
-        speedRef.current = Math.max(
-          cfg.min,
-          cfg.base - Math.floor(newScore / 50) * 15
-        );
-        setFood(getRandomFoodCoord(newSnake));
-      } else {
-        newSnake.pop(); // Remove tail
-      }
-
-      return newSnake;
-    });
+      // Speed ramp up, scaled to the chosen difficulty
+      const cfg = DIFFICULTY_CONFIG[difficulty];
+      speedRef.current = Math.max(
+        cfg.min,
+        cfg.base - Math.floor(result.score / 50) * 15
+      );
+    }
   }, [food, isGameOver, isHapticsEnabled, isMuted, onScoreUpdate, score, difficulty]);
 
   const handleEnd = (finalScore: number) => {
@@ -182,13 +136,14 @@ export const SnakeGame: React.FC<GameSessionProps> = ({
     if (gameLoopRef.current) clearInterval(gameLoopRef.current);
     if (!isMuted) audioService.playSound('game_over');
     if (isHapticsEnabled) hapticsService.heavyImpact();
-    onGameOver(finalScore, { snakeLength: snake.length });
+    onGameOver(finalScore, { snakeLength: snakeRef.current.length });
   };
 
   const selectDifficulty = useCallback(
     (next: Difficulty) => {
       rememberedDifficulty = next;
       setDifficulty(next);
+      snakeRef.current = INITIAL_SNAKE.map((p) => [...p] as Point);
       setSnake(INITIAL_SNAKE.map((p) => [...p] as Point));
       setFood([...INITIAL_FOOD] as Point);
       setScore(0);

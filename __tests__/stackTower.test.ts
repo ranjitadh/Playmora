@@ -1,6 +1,7 @@
 import {
   BASE_W,
   StackState,
+  cameraStartIndex,
   createStackState,
   dropBlock,
   startStack,
@@ -54,3 +55,20 @@ describe('Stack Tower — dropping', () => {
 function s0base(): number {
   return (1 - BASE_W) / 2;
 }
+
+describe('Stack Tower — camera window', () => {
+  it('does not scroll while the tower fits on screen', () => {
+    expect(cameraStartIndex(0, 12)).toBe(0);
+    expect(cameraStartIndex(12, 12)).toBe(0);
+  });
+
+  it('scrolls once the tower is taller than the viewport, keeping the newest block visible', () => {
+    expect(cameraStartIndex(13, 12)).toBe(1);
+    expect(cameraStartIndex(40, 12)).toBe(28);
+    // The newest block (index blockCount) must sit within the window.
+    const blockCount = 40;
+    const maxVisible = 12;
+    const start = cameraStartIndex(blockCount, maxVisible);
+    expect(blockCount - start).toBe(maxVisible);
+  });
+});

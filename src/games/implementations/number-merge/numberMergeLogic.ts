@@ -60,4 +60,52 @@ export function hasMovesRemaining(board: Board): boolean {
   return false;
 }
 
+export type MoveDirection = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * Applies a full slide+merge for one direction across the whole board. Pure: it
+ * returns the resulting board, the score gained and whether anything moved, so
+ * the caller decides whether to spawn a tile (and can operate on fresh state).
+ */
+export function applyMove(
+  board: Board,
+  direction: MoveDirection
+): { board: Board; gained: number; changed: boolean } {
+  const next = createEmptyBoard();
+  let gained = 0;
+  let changed = false;
+
+  const horizontal = direction === 'left' || direction === 'right';
+  for (let line = 0; line < BOARD_SIZE; line++) {
+    // Read the line in the direction of travel so `slideRow` always merges
+    // toward index 0, then write it back in the original orientation.
+    const source: number[] = horizontal
+      ? direction === 'left'
+        ? [...board[line]]
+        : [...board[line]].reverse()
+      : direction === 'up'
+        ? Array.from({ length: BOARD_SIZE }, (_, r) => board[r][line])
+        : Array.from({ length: BOARD_SIZE }, (_, r) => board[BOARD_SIZE - 1 - r][line]);
+
+    const { newRow, scoreGained } = slideRow(source);
+    gained += scoreGained;
+
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      const value = source[i];
+      const merged = newRow[i];
+      if (value !== merged) changed = true;
+
+      if (horizontal) {
+        const c = direction === 'left' ? i : BOARD_SIZE - 1 - i;
+        next[line][c] = merged;
+      } else {
+        const r = direction === 'up' ? i : BOARD_SIZE - 1 - i;
+        next[r][line] = merged;
+      }
+    }
+  }
+
+  return { board: next, gained, changed };
+}
+
 export { BOARD_SIZE };

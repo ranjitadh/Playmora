@@ -1,4 +1,14 @@
-import { allLegalMoves, createChess, inCheck, kingSquare, legalMovesFrom, makeMove } from '../src/games/implementations/chess/chessLogic';
+import {
+  Board,
+  ChessState,
+  allLegalMoves,
+  createChess,
+  inCheck,
+  kingSquare,
+  legalMovesFrom,
+  makeMove,
+  outcomeReport,
+} from '../src/games/implementations/chess/chessLogic';
 
 describe('Chess — setup', () => {
   it('initialises the standard board', () => {
@@ -75,5 +85,69 @@ describe('Chess — moves', () => {
     const kingMoves = allLegalMoves(m, 'b');
     // Black king must move
     expect(kingMoves.every((mv) => mv.from === 4)).toBe(true);
+  });
+});
+
+function customState(over: Partial<ChessState>): ChessState {
+  return {
+    board: Array(64).fill(null),
+    turn: 'w',
+    castling: { wK: false, wQ: false, bK: false, bQ: false },
+    ep: null,
+    halfmove: 0,
+    lastMove: null,
+    outcome: 'in_progress',
+    winner: null,
+    check: false,
+    ...over,
+  };
+}
+
+describe('Chess — terminal outcome reporting', () => {
+  it('reports null while the game is in progress', () => {
+    expect(outcomeReport(createChess())).toBeNull();
+  });
+
+  it("reports checkmate and its winner (Fool's mate)", () => {
+    let m = createChess();
+    m = makeMove(m, 53, 45); // f2-f3
+    m = makeMove(m, 12, 28); // e7-e5
+    m = makeMove(m, 54, 38); // g2-g4
+    m = makeMove(m, 3, 39); // d8-h4#
+    expect(outcomeReport(m)).toEqual({ outcome: 'checkmate', winner: 'b' });
+  });
+
+  it('reports stalemate with no winner', () => {
+    const board: Board = Array(64).fill(null);
+    board[0] = 'bK'; // a8
+    board[17] = 'wQ'; // b6
+    board[56] = 'wK'; // a1
+    const s = customState({ board, turn: 'w' });
+    const m = makeMove(s, 17, 10); // Qb6-c7 → black king a8 has no legal move and is not in check
+    expect(m.outcome).toBe('stalemate');
+    expect(outcomeReport(m)).toEqual({ outcome: 'stalemate', winner: null });
+  });
+
+  it('reports a draw by the 50-move rule', () => {
+    const board: Board = Array(64).fill(null);
+    board[60] = 'wK'; // e1
+    board[4] = 'bK'; // e8
+    board[48] = 'wR'; // a2
+    const s = customState({ board, turn: 'w', halfmove: 99 });
+    const m = makeMove(s, 48, 40); // Ra2-a3 (non-pawn, non-capture) → halfmove hits 100
+    expect(m.outcome).toBe('draw');
+    expect(outcomeReport(m)).toEqual({ outcome: 'draw', winner: null });
+  });
+
+  it('produces the terminal report exactly once (makeMove is a no-op after)', () => {
+    let m = createChess();
+    m = makeMove(m, 53, 45);
+    m = makeMove(m, 12, 28);
+    m = makeMove(m, 54, 38);
+    m = makeMove(m, 3, 39); // mate
+    expect(outcomeReport(m)).toEqual({ outcome: 'checkmate', winner: 'b' });
+    const again = makeMove(m, 52, 44);
+    expect(again).toBe(m);
+    expect(outcomeReport(again)).toEqual({ outcome: 'checkmate', winner: 'b' });
   });
 });

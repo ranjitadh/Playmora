@@ -62,6 +62,11 @@ export function tapBounce(state: ColorSwitchState): ColorSwitchState {
   return { ...state, vy: BOUNCE_VELOCITY };
 }
 
+/** Changers that should still be drawn — collected ones are hidden. */
+export function visibleChangers(state: ColorSwitchState): Changer[] {
+  return state.changers.filter((c) => !c.taken);
+}
+
 export function stepColorSwitch(state: ColorSwitchState, dt: number): ColorSwitchState {
   if (state.status !== 'playing') return state;
   const d = Math.max(0, Math.min(0.05, dt));

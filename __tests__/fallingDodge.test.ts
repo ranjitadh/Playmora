@@ -73,3 +73,29 @@ describe('Falling Dodge — physics, scoring, collisions', () => {
     expect(stepFallingDodge(s, 0.05, cfg)).toBe(s);
   });
 });
+
+describe('Falling Dodge — lane patterns are always dodgeable', () => {
+  const spawnWave = (rng: () => number) => {
+    const spy = jest.spyOn(Math, 'random').mockImplementation(rng);
+    try {
+      const base = startFallingDodge(createFallingDodge(), cfgLanes);
+      return stepFallingDodge({ ...base, spawnTimer: 0 }, 0.001, cfgLanes).obstacles;
+    } finally {
+      spy.mockRestore();
+    }
+  };
+
+  it('never fills every lane, even when every non-open roll succeeds', () => {
+    // Always-0 rolls would have filled all three lanes before the fix.
+    const obstacles = spawnWave(() => 0);
+    const blockedLanes = new Set(obstacles.map((o) => o.x));
+    expect(blockedLanes.size).toBeLessThan(cfgLanes.lanes!);
+  });
+
+  it('always spawns at least one obstacle on a lane', () => {
+    // Almost-1 rolls would spawn nothing; the fallback must still emit one.
+    const obstacles = spawnWave(() => 0.99);
+    expect(obstacles.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(obstacles.map((o) => o.x)).size).toBeLessThan(cfgLanes.lanes!);
+  });
+});

@@ -15,13 +15,15 @@ import {
   movePlayer,
   step,
 } from './pongLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
-export const PongGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const PongGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [court, setCourt] = useState({ w: 340, h: 480 });
   const [state, setState] = useState(createState);
   const stateRef = useRef(state);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
+  const pausedRef = usePausedRef(isPaused);
   const finishedRef = useRef(false);
 
   stateRef.current = state;
@@ -35,7 +37,7 @@ export const PongGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => step(prev, dt));
+      if (!pausedRef.current) setState((prev) => step(prev, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);

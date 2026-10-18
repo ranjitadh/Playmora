@@ -6,6 +6,7 @@ import {
   startColorSwitch,
   stepColorSwitch,
   tapBounce,
+  visibleChangers,
 } from '../src/games/implementations/color-switch/colorSwitchLogic';
 
 const playing = (): ColorSwitchState => startColorSwitch(createColorSwitchState());
@@ -85,5 +86,27 @@ describe('Color Switch — changers', () => {
     };
     const after = stepColorSwitch(s, 0.001);
     expect(after.color).toBe(1 % COLOR_COUNT);
+  });
+
+  it('renders a changer until it is collected, then hides it', () => {
+    const s: ColorSwitchState = {
+      ...playing(),
+      y: 0.5,
+      vy: 0,
+      color: 0,
+      barTimer: 99,
+      changerTimer: 99,
+      changers: [{ y: 0.5, taken: false }],
+    };
+    expect(visibleChangers(s)).toHaveLength(1);
+    const after = stepColorSwitch(s, 0.001);
+    expect(after.changers[0].taken).toBe(true);
+    expect(visibleChangers(after)).toHaveLength(0);
+  });
+
+  it('hides a changer that is already taken', () => {
+    const s: ColorSwitchState = { ...playing(), changers: [{ y: 0.4, taken: true }, { y: 0.8, taken: false }] };
+    expect(visibleChangers(s)).toHaveLength(1);
+    expect(visibleChangers(s)[0].y).toBe(0.8);
   });
 });

@@ -19,6 +19,7 @@ import {
   shoot,
   stepShot,
 } from './basketballLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const K = 3.4;
 const DRAG_MIN = 0.05;
@@ -28,7 +29,7 @@ interface Pt {
   y: number;
 }
 
-export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
+export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 460 });
   const [state, setState] = useState<ShotState>(createShotGame);
   const [aim, setAim] = useState<Pt | null>(null);
@@ -36,6 +37,7 @@ export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
   const startRef = useRef<Pt | null>(null);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -46,7 +48,7 @@ export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
       if (!lastRef.current) lastRef.current = t;
       const dt = Math.min(0.05, (t - lastRef.current) / 1000);
       lastRef.current = t;
-      setState((prev) => (prev.phase === 'flying' || prev.phase === 'ready' ? stepShot(prev, dt) : prev));
+      if (!pausedRef.current) setState((prev) => (prev.phase === 'flying' || prev.phase === 'ready' ? stepShot(prev, dt) : prev));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -126,14 +128,6 @@ export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
     return pts;
   }, [aim]);
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    setAim(null);
-    startRef.current = null;
-    setState(createShotGame());
-    if (!isMuted) audioService.playSound('tap');
-  }, [isMuted]);
-
   const px = (nx: number) => nx * area.w;
   const py = (ny: number) => ny * area.h;
   const ballPx = state.ball.r * area.w;
@@ -181,19 +175,6 @@ export const BasketballShotsGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
           </View>
         )}
 
-        {state.outcome === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="timer" size={40} color={Modern.accent} />
-              <Text style={styles.resultTitle}>Time's Up</Text>
-              <Text style={styles.resultSub}>{`${state.score} points · ${state.makes} baskets`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.footer}>
@@ -225,12 +206,6 @@ const styles = StyleSheet.create({
   ready: { position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center' },
   readyText: { color: Modern.accent, fontSize: 17, fontWeight: '900', letterSpacing: 2 },
   readySub: { color: Modern.inkSoft, fontSize: 12, marginTop: 4 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.82)' },
-  card: { backgroundColor: Modern.surface, borderRadius: Modern.radius, padding: 24, alignItems: 'center', width: 240 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Modern.ink, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Modern.inkSoft, marginTop: 4, textAlign: 'center' },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Modern.accent, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24, marginTop: 16 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10 },
   hint: { color: Modern.inkSoft, fontSize: 12 },
   exitRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },

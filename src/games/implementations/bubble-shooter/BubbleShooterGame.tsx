@@ -20,7 +20,9 @@ import {
   ROWS,
   createBubbles,
   fire,
+  isSignificantAim,
   offsetOf,
+  simulatePath,
 } from './bubbleLogic';
 
 const BUBBLE_COLORS = ['#F59E0B', '#F43F5E', '#10B981', '#7557E8', '#38BDF8'];
@@ -39,6 +41,11 @@ export const BubbleShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
   const cellH = bubbleD * 0.9;
   const shooterX = area.w / 2;
   const shooterY = area.h - 44;
+
+  const originX = (shooterX - 2 - bubbleD / 2) / cellW;
+  const originY = (shooterY - 2 - bubbleD / 2) / cellH;
+  const gridToX = useCallback((gx: number) => gx * cellW + 2 + bubbleD / 2, [cellW, bubbleD]);
+  const gridToY = useCallback((gy: number) => gy * cellH + 2 + bubbleD / 2, [cellH, bubbleD]);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -68,36 +75,49 @@ export const BubbleShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
     [shooterX, shooterY]
   );
 
+  const dragRef = useRef({ moved: false, startX: 0, startY: 0 });
+
+  const onGrant = useCallback(
+    (e: GestureResponderEvent) => {
+      const { locationX, locationY } = e.nativeEvent;
+      dragRef.current = { moved: false, startX: locationX, startY: locationY };
+      updateAim(locationX, locationY);
+    },
+    [updateAim]
+  );
+
   const onMove = useCallback(
-    (e: GestureResponderEvent) => updateAim(e.nativeEvent.locationX, e.nativeEvent.locationY),
+    (e: GestureResponderEvent) => {
+      const { locationX, locationY } = e.nativeEvent;
+      const drag = dragRef.current;
+      if (!drag.moved && !isSignificantAim(locationX - drag.startX, locationY - drag.startY)) return;
+      drag.moved = true;
+      updateAim(locationX, locationY);
+    },
     [updateAim]
   );
 
   const shootNow = useCallback(() => {
     if (state.outcome !== 'in_progress') return;
-    setState((s) => fire(s, aim.x, aim.y));
+    setState((s) => fire(s, aim.x / cellW, aim.y / cellH, originX, originY));
     if (!isMuted) audioService.playSound('pop');
     if (isHapticsEnabled) hapticsService.lightImpact();
-  }, [state.outcome, aim, isMuted, isHapticsEnabled]);
+  }, [state.outcome, aim, cellW, cellH, originX, originY, isMuted, isHapticsEnabled]);
 
-  const onRelease = useCallback(() => shootNow(), [shootNow]);
-
-  const replay = useCallback(() => {
-    finishedRef.current = false;
-    setState(createBubbles());
-    setAim({ x: 0, y: -1 });
-    if (!isMuted) audioService.playSound('tap');
-  }, [isMuted]);
+  const onRelease = useCallback(() => {
+    if (!dragRef.current.moved) return;
+    dragRef.current.moved = false;
+    shootNow();
+  }, [shootNow]);
 
   const preview = useMemo(() => {
-    const len = Math.hypot(aim.x, aim.y) || 1;
-    const dx = aim.x / len;
-    const dy = aim.y / len;
-    return Array.from({ length: 7 }, (_, i) => ({
-      x: shooterX + dx * (i + 1) * 17,
-      y: shooterY - 20 + dy * (i + 1) * 17,
-    }));
-  }, [aim, shooterX, shooterY]);
+    const points: { x: number; y: number }[] = [{ x: shooterX, y: shooterY }];
+    const cells = simulatePath(state.grid, originX, originY, aim.x / cellW, aim.y / cellH);
+    for (const [r, c] of cells) {
+      points.push({ x: gridToX(c + offsetOf(r)), y: gridToY(r) });
+    }
+    return points;
+  }, [state.grid, originX, originY, aim, cellW, cellH, shooterX, shooterY, gridToX, gridToY]);
 
   const dropsLeft = Math.max(0, MISS_LIMIT - state.misses);
 
@@ -144,11 +164,11 @@ export const BubbleShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
 
         {/* Aim line */}
         {state.outcome === 'in_progress' &&
-          preview.map((p, i) => (
+          preview.slice(1).map((p, i) => (
             <View
               key={`p-${i}`}
               pointerEvents="none"
-              style={[styles.previewDot, { left: p.x - 3, top: p.y - 3, opacity: 1 - i * 0.12 }]}
+              style={[styles.previewDot, { left: p.x - 3, top: p.y - 3, opacity: Math.max(0.15, 1 - i * 0.1) }]}
             />
           ))}
 
@@ -165,23 +185,10 @@ export const BubbleShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
           style={StyleSheet.absoluteFill}
           onStartShouldSetResponder={() => true}
           onMoveShouldSetResponder={() => true}
+          onResponderGrant={onGrant}
           onResponderMove={onMove}
           onResponderRelease={onRelease}
         />
-
-        {state.outcome === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="game-controller" size={40} color={Modern.accent} />
-              <Text style={styles.resultTitle}>Board Filled!</Text>
-              <Text style={styles.resultSub}>{`${state.score} pts in ${state.shots} shots`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={replay} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.footer}>
@@ -210,10 +217,6 @@ const styles = StyleSheet.create({
   shooter: { position: 'absolute', width: 40, height: 40 },
   shooterBody: { borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6 },
   nextBubble: { position: 'absolute' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.82)', zIndex: 10 },
-  card: { backgroundColor: Modern.surface, borderRadius: Modern.radius, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Modern.ink, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Modern.inkSoft, marginTop: 4, textAlign: 'center' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Modern.accent, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 20 },
   primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 },

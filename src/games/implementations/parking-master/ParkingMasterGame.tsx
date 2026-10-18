@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,15 +6,17 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { ParkingState, createParking, startParking, stepParking } from './parkingLogic';
-import { HudPill, ResultOverlay, racingStyles } from '../shared/racingHud';
+import { HudPill, racingStyles } from '../shared/racingHud';
+import { usePausedRef } from '../shared/usePausedRef';
 
-export const ParkingMasterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onGameWin, isMuted, isHapticsEnabled }) => {
+export const ParkingMasterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onGameWin, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 440 });
   const [state, setState] = useState<ParkingState>(createParking);
   const controls = useRef({ throttle: 0, steer: 0 });
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.status === 'won' ? 100 : 0);
@@ -25,7 +27,7 @@ export const ParkingMasterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepParking(prev, dt, controls.current));
+      if (!pausedRef.current) setState((prev) => stepParking(prev, dt, controls.current));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -57,12 +59,6 @@ export const ParkingMasterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
   };
 
   const start = () => setState((s) => startParking(s));
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    controls.current = { throttle: 0, steer: 0 };
-    setState(startParking(createParking()));
-  }, []);
 
   const hold = (key: 'throttle' | 'steer', value: number) => ({
     onPressIn: () => {
@@ -112,13 +108,6 @@ export const ParkingMasterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, o
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>REVERSE INTO THE BAY</Text>
           </View>
-        )}
-
-        {state.status === 'won' && (
-          <ResultOverlay icon="checkmark-circle" tone={Colors.accent} title="Parked!" subtitle="Perfect bay entry" buttonLabel="Play Again" onRetry={restart} />
-        )}
-        {state.status === 'over' && (
-          <ResultOverlay icon="car" title="Crash!" subtitle="Out of time or hit something" onRetry={restart} />
         )}
       </View>
 

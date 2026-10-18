@@ -18,6 +18,7 @@ import {
   hop,
   tick,
 } from './frogLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const TICK_MS = 480;
 
@@ -29,17 +30,20 @@ function rowKind(row: number): 'goal' | 'river' | 'median' | 'road' | 'start' {
   return 'start';
 }
 
-export const FrogRoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
-  const [area, setArea] = useState({ w: 320, h: 460 });
+export const FrogRoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
+  const [area, setArea] = useState({ w: 320, h: 420 });
   const [state, setState] = useState<FrogState>(createFrog);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
   }, [state, onScoreUpdate]);
 
   useEffect(() => {
-    const id = setInterval(() => setState((s) => tick(s)), TICK_MS);
+    const id = setInterval(() => {
+      if (!pausedRef.current) setState((s) => tick(s));
+    }, TICK_MS);
     return () => clearInterval(id);
   }, []);
 
@@ -66,11 +70,6 @@ export const FrogRoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate
     },
     [isMuted, isHapticsEnabled]
   );
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    setState(createFrog());
-  }, []);
 
   const cell = Math.max(12, Math.floor(Math.min(area.w / COLS, area.h / ROWS)));
   const boardW = cell * COLS;
@@ -139,20 +138,6 @@ export const FrogRoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate
             ]}
           />
         </View>
-
-        {(state.outcome === 'won' || state.outcome === 'over') && (
-          <View style={styles.overlay}>
-            <View style={styles.resultCard}>
-              <Ionicons name={state.outcome === 'won' ? 'trophy' : 'water'} size={40} color={state.outcome === 'won' ? Colors.accentGold : '#2E86C1'} />
-              <Text style={styles.resultTitle}>{state.outcome === 'won' ? 'Home Safe!' : 'Game Over'}</Text>
-              <Text style={styles.resultSub}>{`${state.score} pts`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Retro.plastic} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.controls}>
@@ -191,12 +176,6 @@ const styles = StyleSheet.create({
   boardWrap: { flex: 1, overflow: 'hidden', backgroundColor: Retro.screen, borderRadius: 14, borderWidth: 2, borderColor: Retro.screenEdge },
   obstacle: { position: 'absolute' },
   frog: { position: 'absolute', backgroundColor: Retro.ink, borderWidth: 2, borderColor: Retro.screen },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(47,44,28,0.55)' },
-  resultCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Colors.textPrimary, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Retro.ink, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 20 },
-  primaryBtnText: { color: Retro.plastic, fontSize: 15, fontWeight: '800' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 10 },
   dpad: { width: 132, height: 132 },
   dBtn: { position: 'absolute', width: 44, height: 44, borderRadius: 12, backgroundColor: Retro.plasticDark, borderWidth: 2, borderColor: Retro.ink, alignItems: 'center', justifyContent: 'center' },

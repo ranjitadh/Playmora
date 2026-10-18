@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,13 +6,15 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { CAR_W, LANE_COUNT, PLAYER_W, CrossState, createCross, moveCross, startCross, stepCross } from './roadCrossingLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
-export const RoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const RoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 420 });
   const [state, setState] = useState<CrossState>(createCross);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -23,7 +25,7 @@ export const RoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepCross(prev, dt));
+      if (!pausedRef.current) setState((prev) => stepCross(prev, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -58,12 +60,6 @@ export const RoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
     setState((s) => moveCross(s, dir));
   };
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    setState(startCross(createCross()));
-  }, []);
-
   const laneY = (lane: number) => (1 - (lane + 0.5) / LANE_COUNT) * area.h;
   const laneH = area.h / LANE_COUNT;
 
@@ -89,20 +85,6 @@ export const RoadCrossingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
         <View style={[styles.player, { left: state.x * area.w - (PLAYER_W * area.w) / 2, top: laneY(state.lane) - laneH * 0.32, width: PLAYER_W * area.w, height: laneH * 0.64 }]}>
           <Ionicons name="person" size={laneH * 0.5} color="#FFFFFF" />
         </View>
-
-        {state.status === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="car-sport" size={40} color={Colors.accentCoral} />
-              <Text style={styles.resultTitle}>Squashed!</Text>
-              <Text style={styles.resultSub}>{`${state.score} lanes`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.pad}>
@@ -140,11 +122,5 @@ const styles = StyleSheet.create({
   pad: { alignItems: 'center', marginTop: 10 },
   padRow: { flexDirection: 'row' },
   padBtn: { width: 56, height: 48, margin: 4, borderRadius: 12, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(32,33,36,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 300, backgroundColor: Colors.surface, borderRadius: 22, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  resultTitle: { color: Colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 10 },
-  resultSub: { color: Colors.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 4, marginBottom: 18 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   hint: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 8 },
 });

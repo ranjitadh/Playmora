@@ -1,16 +1,21 @@
 import {
   BubbleState,
   COLS,
+  MIN_AIM_DISTANCE,
   MISS_LIMIT,
   ROWS,
+  SHOT_ORIGIN_X,
+  SHOT_ORIGIN_Y,
   bottomFilled,
   createBubbles,
   findFloating,
   fire,
   floodFill,
+  isSignificantAim,
   neighbors,
   pushRow,
   resolveLanding,
+  simulatePath,
   simulateShot,
 } from '../src/games/implementations/bubble-shooter/bubbleLogic';
 import { Grid } from '../src/games/implementations/bubble-shooter/bubbleLogic';
@@ -201,5 +206,49 @@ describe('bubble-shooter — full turn', () => {
     expect(s.grid).toHaveLength(ROWS);
     expect(s.shots).toBe(0);
     expect(s.grid[0].every((c) => c !== null)).toBe(true);
+  });
+});
+
+describe('bubble-shooter — trajectory consistency', () => {
+  test('the simulated path ends where the shot lands', () => {
+    const g = build([]);
+    g[5][5] = 1;
+    const path = simulatePath(g, SHOT_ORIGIN_X, SHOT_ORIGIN_Y, 0, -1);
+    expect(path.length).toBeGreaterThan(0);
+    expect(path[path.length - 1]).toEqual(simulateShot(g, SHOT_ORIGIN_X, SHOT_ORIGIN_Y, 0, -1));
+    expect(path[path.length - 1]).toEqual([6, 5]);
+  });
+
+  test('a clear path walks from the floor to the top row', () => {
+    const path = simulatePath(build([]), SHOT_ORIGIN_X, SHOT_ORIGIN_Y, 0, -1);
+    expect(path[path.length - 1][0]).toBe(0);
+    expect(path.every(([r]) => r >= 0 && r < ROWS)).toBe(true);
+  });
+
+  test('adjacent path cells are never duplicated', () => {
+    const path = simulatePath(build([]), SHOT_ORIGIN_X, SHOT_ORIGIN_Y, 0.3, -0.95);
+    for (let i = 1; i < path.length; i++) {
+      expect(path[i]).not.toEqual(path[i - 1]);
+    }
+  });
+
+  test('a degenerate direction yields no path', () => {
+    expect(simulatePath(build([]), SHOT_ORIGIN_X, SHOT_ORIGIN_Y, 0, 0)).toEqual([]);
+  });
+
+  test('an origin can be placed off-centre', () => {
+    expect(simulateShot(build([]), 1, ROWS - 0.5, 0, -1)).toEqual([0, 1]);
+  });
+});
+
+describe('bubble-shooter — intentional-aim guard', () => {
+  test('a short tap is below the significance threshold', () => {
+    expect(isSignificantAim(3, 4)).toBe(false);
+    expect(isSignificantAim(0, 0)).toBe(false);
+  });
+
+  test('a real drag clears the threshold', () => {
+    expect(isSignificantAim(MIN_AIM_DISTANCE, 0)).toBe(true);
+    expect(isSignificantAim(0, MIN_AIM_DISTANCE + 30)).toBe(true);
   });
 });

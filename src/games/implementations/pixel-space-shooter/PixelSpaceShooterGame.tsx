@@ -18,14 +18,16 @@ import {
   movePlayer,
   step,
 } from './shooterLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const TICK_MS = 110;
 
-export const PixelSpaceShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
+export const PixelSpaceShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 320, h: 460 });
   const [state, setState] = useState<ShooterState>(createShooter);
   const autoFire = useRef(false);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -42,6 +44,7 @@ export const PixelSpaceShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdat
 
   useEffect(() => {
     const id = setInterval(() => {
+      if (pausedRef.current) return;
       setState((s) => {
         let next = step(s);
         if (autoFire.current) next = fire(next);
@@ -68,11 +71,6 @@ export const PixelSpaceShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdat
     setState((s) => fire(s));
     if (!isMuted) audioService.playSound('tap');
   }, [isMuted]);
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    setState(createShooter());
-  }, []);
 
   const cell = Math.max(10, Math.floor(Math.min(area.w / COLS, area.h / ROWS)));
   const boardW = cell * COLS;
@@ -148,20 +146,6 @@ export const PixelSpaceShooterGame: React.FC<GameSessionProps> = ({ onScoreUpdat
             ]}
           />
         </View>
-
-        {state.outcome === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.resultCard}>
-              <Ionicons name="skull" size={40} color={Colors.accentCoral} />
-              <Text style={styles.resultTitle}>Invaded!</Text>
-              <Text style={styles.resultSub}>{`${state.score} pts · reached wave ${state.wave}`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Retro.plastic} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.controls}>
@@ -205,12 +189,6 @@ const styles = StyleSheet.create({
   alienEye: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Retro.screen },
   bullet: { position: 'absolute', width: 4, height: 10, borderRadius: 2 },
   ship: { position: 'absolute', borderRadius: 4 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(47,44,28,0.55)' },
-  resultCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Colors.textPrimary, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Retro.ink, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 20 },
-  primaryBtnText: { color: Retro.plastic, fontSize: 15, fontWeight: '800' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 10 },
   moveRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   ctlBtn: { width: 56, height: 56, borderRadius: 16, backgroundColor: Retro.plasticDark, borderWidth: 2, borderColor: Retro.ink, alignItems: 'center', justifyContent: 'center' },

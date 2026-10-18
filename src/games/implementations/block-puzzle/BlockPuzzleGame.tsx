@@ -78,15 +78,6 @@ export const BlockPuzzleGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
     if (!anyPlacement(placedGrid, nextTray.filter(Boolean) as Shape[])) endGame(nextScore);
   };
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    setGrid(createGrid(SIZE));
-    setTray([randomShape(), randomShape(), randomShape()]);
-    setSelected(0);
-    setScore(0);
-    setOver(false);
-  }, []);
-
   const displayScore = over ? score : Math.max(score, best);
   useEffect(() => setBest((b) => Math.max(b, score)), [score]);
 
@@ -145,20 +136,6 @@ export const BlockPuzzleGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
       </View>
 
       <Text style={styles.hint}>Pick a block, then tap the board to place it</Text>
-
-      {over && (
-        <View style={styles.overlay}>
-          <View style={styles.card}>
-            <Ionicons name="grid" size={38} color={Colors.accentCoral} />
-            <Text style={styles.resultTitle}>No moves left</Text>
-            <Text style={styles.resultSub}>{`${score} points`}</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-              <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-              <Text style={styles.primaryBtnText}>Play Again</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 };
@@ -180,10 +157,4 @@ const styles = StyleSheet.create({
   mini: { position: 'relative' },
   miniBlock: { position: 'absolute', width: 12, height: 12, borderRadius: 3 },
   hint: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 16 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(32,33,36,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 300, backgroundColor: Colors.surface, borderRadius: 22, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  resultTitle: { color: Colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 10 },
-  resultSub: { color: Colors.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 4, marginBottom: 18 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
 });

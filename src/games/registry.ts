@@ -107,6 +107,17 @@ const GAME_REGISTRY: Record<string, GameComponent> = {
   'classic-pinball': ClassicPinballGame,
 };
 
+/**
+ * Games that persist an in-progress snapshot (via `onSaveProgress`) and can be
+ * resumed from it (`initialProgress`). The GameContainer only offers the
+ * Continue / New Game choice for these ids.
+ */
+export const RESUMABLE_GAMES = new Set<string>(['minesweeper']);
+
+export function canResume(gameId: string): boolean {
+  return RESUMABLE_GAMES.has(gameId) && !!GAME_REGISTRY[gameId];
+}
+
 export function getGameComponent(gameId: string): GameComponent | null {
   return GAME_REGISTRY[gameId] || null;
 }

@@ -10,6 +10,7 @@ import {
   createChess,
   legalMovesFrom,
   makeMove,
+  outcomeReport,
 } from './chessLogic';
 import { BoardResultOverlay, TwoPlayerBar, boardStyles } from '../shared/boardUi';
 
@@ -18,7 +19,7 @@ const GLYPH: Record<string, string> = {
   bK: '♚', bQ: '♛', bR: '♜', bB: '♝', bN: '♞', bP: '♟',
 };
 
-export const ChessGame: React.FC<GameSessionProps> = ({ onExit, isMuted, isHapticsEnabled }) => {
+export const ChessGame: React.FC<GameSessionProps> = ({ onExit, onGameOver, isMuted, isHapticsEnabled }) => {
   const [game, setGame] = useState<ChessState>(() => createChess());
   const [selected, setSelected] = useState<number | null>(null);
   const [pendingPromo, setPendingPromo] = useState<number | null>(null);
@@ -54,8 +55,12 @@ export const ChessGame: React.FC<GameSessionProps> = ({ onExit, isMuted, isHapti
         if (!isMuted) audioService.playSound(next.check ? 'error' : 'pop');
         if (isHapticsEnabled) hapticsService.lightImpact();
       }
+      const report = outcomeReport(next);
+      if (report) {
+        onGameOver(0, { outcome: report.outcome, winner: report.winner });
+      }
     },
-    [isMuted, isHapticsEnabled]
+    [isMuted, isHapticsEnabled, onGameOver]
   );
 
   const tryMove = useCallback(

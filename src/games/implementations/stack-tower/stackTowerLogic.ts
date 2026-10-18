@@ -57,8 +57,7 @@ export function updateMotion(state: StackState, dt: number): StackState {
   return { ...state, movingX: x, dir };
 }
 
-/** Drops the moving block. Returns the new state; status becomes 'over' on a complete miss. */
-export function dropBlock(state: StackState, startX = 0.05): StackState {
+/** Drops the moving block. Returns the new state; status becomes 'over' on a complete miss. */export function dropBlock(state: StackState, startX = 0.05): StackState {
   if (state.status !== 'playing') return state;
   const prev = state.blocks[state.blocks.length - 1];
   const left = Math.max(prev.x, state.movingX);
@@ -81,4 +80,13 @@ export function dropBlock(state: StackState, startX = 0.05): StackState {
     speed: state.speed + SPEED_STEP,
     score: state.score + 1,
   };
+}
+
+/**
+ * Index of the first block to render so the newest block stays on screen. The
+ * tower grows upward without bound, so once it is taller than the viewport the
+ * camera scrolls to keep the top `maxVisible` blocks visible.
+ */
+export function cameraStartIndex(blockCount: number, maxVisible: number): number {
+  return Math.max(0, blockCount - Math.max(1, maxVisible));
 }

@@ -4,6 +4,7 @@ import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
+import { usePausedRef } from '../shared/usePausedRef';
 
 interface ColorItem {
   name: string;
@@ -24,6 +25,7 @@ export const ColorMatchGame: React.FC<GameSessionProps> = ({
   onGameOver,
   isMuted,
   isHapticsEnabled,
+  isPaused,
 }) => {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -35,6 +37,7 @@ export const ColorMatchGame: React.FC<GameSessionProps> = ({
   const [isGameOver, setIsGameOver] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pausedRef = usePausedRef(isPaused);
   const maxTimeRef = useRef(4.0);
 
   const generateRound = useCallback(() => {
@@ -70,6 +73,7 @@ export const ColorMatchGame: React.FC<GameSessionProps> = ({
     if (isGameOver) return;
 
     timerRef.current = setInterval(() => {
+      if (pausedRef.current) return;
       setTimeLeft((prev) => {
         if (prev <= 0.1) {
           clearInterval(timerRef.current!);

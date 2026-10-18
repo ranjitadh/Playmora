@@ -34,6 +34,18 @@ export interface GameSessionProps {
   onExit: () => void;
   isMuted: boolean;
   isHapticsEnabled: boolean;
+  isPaused?: boolean;
+  /**
+   * Game-specific saved state to restore when the player chooses "Continue".
+   * Only provided for games that opt into resumable sessions; `undefined`
+   * means a fresh start.
+   */
+  initialProgress?: unknown;
+  /**
+   * Persists a game-specific snapshot so the player can resume later. Only
+   * games that opt into resumable sessions should call this.
+   */
+  onSaveProgress?: (state: unknown) => void;
 }
 
 export interface GameStats {

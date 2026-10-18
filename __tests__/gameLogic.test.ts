@@ -1,4 +1,4 @@
-import { slideRow, hasMovesRemaining } from '../src/games/implementations/number-merge/numberMergeLogic';
+import { applyMove, hasMovesRemaining, slideRow, Board } from '../src/games/implementations/number-merge/numberMergeLogic';
 
 describe('Number Merge (2048) Core Game Logic', () => {
   test('Slides non-zero tiles to the left', () => {
@@ -65,5 +65,70 @@ describe('Number Merge (2048) Core Game Logic', () => {
       [8, 16, 32, 64],
     ];
     expect(hasMovesRemaining(lockedBoard)).toBe(false);
+  });
+});
+
+describe('Number Merge — applyMove across the whole board', () => {
+  const board: Board = [
+    [2, 0, 0, 2],
+    [0, 0, 0, 0],
+    [4, 4, 2, 2],
+    [0, 0, 0, 2],
+  ];
+
+  test('slides and merges every row to the left', () => {
+    const { board: next, gained, changed } = applyMove(board, 'left');
+    expect(next).toEqual([
+      [4, 0, 0, 0],
+      [0, 0, 0, 0],
+      [8, 4, 0, 0],
+      [2, 0, 0, 0],
+    ]);
+    expect(gained).toBe(16);
+    expect(changed).toBe(true);
+  });
+
+  test('slides and merges every row to the right', () => {
+    const { board: next, gained } = applyMove(board, 'right');
+    expect(next).toEqual([
+      [0, 0, 0, 4],
+      [0, 0, 0, 0],
+      [0, 0, 8, 4],
+      [0, 0, 0, 2],
+    ]);
+    expect(gained).toBe(16);
+  });
+
+  test('slides and merges every column up', () => {
+    const { board: next, gained } = applyMove(board, 'up');
+    expect(next).toEqual([
+      [2, 4, 2, 4],
+      [4, 0, 0, 2],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ]);
+    expect(gained).toBe(4);
+  });
+
+  test('slides and merges every column down', () => {
+    const { board: next, gained } = applyMove(board, 'down');
+    expect(next).toEqual([
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [2, 0, 0, 2],
+      [4, 4, 2, 4],
+    ]);
+    expect(gained).toBe(4);
+  });
+
+  test('reports changed=false when a move would do nothing', () => {
+    const locked: Board = [
+      [2, 4, 8, 16],
+      [32, 64, 128, 256],
+      [512, 1024, 2, 4],
+      [8, 16, 32, 64],
+    ];
+    expect(applyMove(locked, 'left').changed).toBe(false);
+    expect(applyMove(locked, 'up').changed).toBe(false);
   });
 });
