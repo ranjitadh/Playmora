@@ -18,6 +18,7 @@ export interface RunnerState {
   status: 'ready' | 'playing' | 'over';
   spawnTimer: number;
   speed: number;
+  jumpsLeft: number;
 }
 
 export const PLAYER_X = 0.2;
@@ -27,6 +28,7 @@ export const GROUND = 0.9;
 export const GRAVITY = 3.2;
 export const JUMP_VELOCITY = -1.45;
 export const MAX_FALL = 2.2;
+export const MAX_JUMPS = 2;
 export const BASE_SPEED = 0.62;
 export const SPAWN_INTERVAL = 1.0;
 
@@ -43,6 +45,7 @@ export function createRunnerState(): RunnerState {
     status: 'ready',
     spawnTimer: 0.5,
     speed: BASE_SPEED,
+    jumpsLeft: MAX_JUMPS,
   };
 }
 
@@ -54,8 +57,9 @@ export function startRun(state: RunnerState): RunnerState {
 export function jump(state: RunnerState): RunnerState {
   if (state.status !== 'playing') return state;
   const grounded = state.y >= playerCenterY() - 1e-6;
-  if (!grounded) return state;
-  return { ...state, vy: JUMP_VELOCITY };
+  const available = grounded ? MAX_JUMPS : state.jumpsLeft;
+  if (available <= 0) return state;
+  return { ...state, vy: JUMP_VELOCITY, jumpsLeft: available - 1 };
 }
 
 function collides(state: RunnerState): boolean {
@@ -77,10 +81,12 @@ export function step(state: RunnerState, dt: number): RunnerState {
   let vy = state.vy + GRAVITY * d;
   vy = Math.min(MAX_FALL, vy);
   let y = state.y + vy * d;
+  let jumpsLeft = state.jumpsLeft;
   const floor = playerCenterY();
   if (y >= floor) {
     y = floor;
     vy = 0;
+    jumpsLeft = MAX_JUMPS;
   }
 
   let obstacles = state.obstacles.map((o) => ({ ...o, x: o.x - state.speed * d }));
@@ -99,7 +105,7 @@ export function step(state: RunnerState, dt: number): RunnerState {
   }
   obstacles = obstacles.filter((o) => o.x > -0.2);
 
-  const next: RunnerState = { ...state, y, vy, obstacles, score, spawnTimer, speed: BASE_SPEED + Math.min(0.5, score * 0.012) };
+  const next: RunnerState = { ...state, y, vy, obstacles, score, spawnTimer, speed: BASE_SPEED + Math.min(0.5, score * 0.012), jumpsLeft };
   if (collides(next)) return { ...next, status: 'over' };
   return next;
 }

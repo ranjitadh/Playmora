@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,18 +6,20 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { GAP_START, GAP_WIDTH, MonsterState, SPACING, createMonster, startMonster, stepMonster } from './monsterTruckLogic';
-import { HudPill, ResultOverlay, racingStyles } from '../shared/racingHud';
+import { HudPill, racingStyles } from '../shared/racingHud';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const VIEW_SPAN = 1.2;
 const CAM_LEFT = 0.35;
 
-export const MonsterTruckJumpGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const MonsterTruckJumpGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 440 });
   const [state, setState] = useState<MonsterState>(createMonster);
   const jumpRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -28,9 +30,11 @@ export const MonsterTruckJumpGame: React.FC<GameSessionProps> = ({ onScoreUpdate
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      const j = jumpRef.current;
-      jumpRef.current = false;
-      setState((prev) => stepMonster(prev, dt, j));
+      if (!pausedRef.current) {
+        const j = jumpRef.current;
+        jumpRef.current = false;
+        setState((prev) => stepMonster(prev, dt, j));
+      }
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -53,13 +57,6 @@ export const MonsterTruckJumpGame: React.FC<GameSessionProps> = ({ onScoreUpdate
     const { width, height } = e.nativeEvent.layout;
     setArea({ w: width, h: height });
   };
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    jumpRef.current = false;
-    setState(startMonster(createMonster()));
-  }, []);
 
   const jump = () => {
     if (state.status === 'ready') setState((s) => startMonster(s));
@@ -112,9 +109,6 @@ export const MonsterTruckJumpGame: React.FC<GameSessionProps> = ({ onScoreUpdate
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>TAP TO JUMP GAPS</Text>
           </View>
-        )}
-        {state.status === 'over' && (
-          <ResultOverlay icon="warning" title="Crashed!" subtitle={`${state.cleared} gaps cleared`} onRetry={restart} />
         )}
       </View>
 

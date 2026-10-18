@@ -6,10 +6,11 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { Problem, checkAnswer, createProblem, formatProblem, scoreForAnswer } from './mathRushLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const DURATION = 45;
 
-export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [problem, setProblem] = useState<Problem>(() => createProblem(2));
   const [input, setInput] = useState('');
   const [score, setScore] = useState(0);
@@ -18,6 +19,7 @@ export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGame
   const [timeLeft, setTimeLeft] = useState(DURATION);
   const [over, setOver] = useState(false);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(score);
@@ -25,7 +27,9 @@ export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGame
 
   useEffect(() => {
     if (over) return;
-    const id = setInterval(() => setTimeLeft((t) => Math.max(0, +(t - 0.1).toFixed(1))), 100);
+    const id = setInterval(() => {
+      if (!pausedRef.current) setTimeLeft((t) => Math.max(0, +(t - 0.1).toFixed(1)));
+    }, 100);
     return () => clearInterval(id);
   }, [over]);
 
@@ -71,17 +75,6 @@ export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGame
     else if (input.length < 4) setInput((v) => v + k);
   };
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    setProblem(createProblem(1));
-    setInput('');
-    setScore(0);
-    setStreak(0);
-    setLevel(1);
-    setTimeLeft(DURATION);
-    setOver(false);
-  }, []);
-
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'ok'];
 
   return (
@@ -125,19 +118,6 @@ export const MathRushGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGame
         ))}
       </View>
 
-      {over && (
-        <View style={styles.overlay}>
-          <View style={styles.card}>
-            <Ionicons name="trophy" size={40} color={Colors.accentGold} />
-            <Text style={styles.resultTitle}>Time's up!</Text>
-            <Text style={styles.resultSub}>{`${score} points`}</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-              <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-              <Text style={styles.primaryBtnText}>Play Again</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 };
@@ -156,10 +136,4 @@ const styles = StyleSheet.create({
   keyOk: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   keyDel: { backgroundColor: Colors.secondary, borderColor: Colors.secondary },
   keyText: { color: Colors.textPrimary, fontSize: 24, fontWeight: '800' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(32,33,36,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 300, backgroundColor: Colors.surface, borderRadius: 22, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  resultTitle: { color: Colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 10 },
-  resultSub: { color: Colors.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 4, marginBottom: 18 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
 });

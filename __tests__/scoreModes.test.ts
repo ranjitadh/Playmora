@@ -119,8 +119,8 @@ describe('ScoreRepository · catalog is the source of truth', () => {
     expect(all['brick-breaker'].scoreType).toBe('points');
     expect(all['brick-breaker'].bestLabel).toBe('BEST');
     expect(all['brick-breaker'].bestScore).toBe(10);
-    expect(all['reaction-time-challenge'].scoreType).toBe('time_lower_is_better');
-    expect(all['reaction-time-challenge'].bestLabel).toBe('BEST TIME');
+    expect(all['reaction-time-challenge'].scoreType).toBe('points');
+    expect(all['reaction-time-challenge'].bestLabel).toBe('BEST');
     expect(all['reaction-time-challenge'].bestScore).toBe(90);
     // Recorded earlier in this file, resolved from the catalog on read.
     expect(all[MOVES_GAME].bestLabel).toBe('BEST MOVES');

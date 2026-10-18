@@ -5,7 +5,16 @@ import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
-import { MineState, createGame, revealCell, toggleFlag } from './minesweeperLogic';
+import {
+  MineState,
+  MinesweeperProgress,
+  createGame,
+  parseMinesweeperProgress,
+  revealCell,
+  serializeMinesweeperProgress,
+  toggleFlag,
+} from './minesweeperLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const ROWS = 9;
 const COLS = 9;
@@ -23,11 +32,21 @@ const NUMBER_COLORS = [
   '#6D4C41',
 ];
 
-export const MinesweeperGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const MinesweeperGame: React.FC<GameSessionProps> = ({
+  onScoreUpdate,
+  onGameOver,
+  isMuted,
+  isHapticsEnabled,
+  isPaused,
+  initialProgress,
+  onSaveProgress,
+}) => {
   const [game, setGame] = useState<MineState | null>(null);
   const [flagMode, setFlagMode] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
+  const resumedRef = useRef<MinesweeperProgress | null>(parseMinesweeperProgress(initialProgress));
 
   const newGame = useCallback(() => {
     finishedRef.current = false;
@@ -37,12 +56,29 @@ export const MinesweeperGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
   }, []);
 
   useEffect(() => {
+    const saved = resumedRef.current;
+    resumedRef.current = null;
+    if (saved && saved.game.status === 'playing') {
+      finishedRef.current = false;
+      setGame(saved.game);
+      setSeconds(saved.seconds);
+      setFlagMode(saved.flagMode);
+      return;
+    }
     newGame();
   }, [newGame]);
 
+  // Persist an in-progress snapshot so the session can be resumed later.
+  useEffect(() => {
+    if (!onSaveProgress || !game || game.status !== 'playing') return;
+    onSaveProgress(serializeMinesweeperProgress(game, seconds, flagMode));
+  }, [game, seconds, flagMode, onSaveProgress]);
+
   useEffect(() => {
     if (!game || game.status !== 'playing') return;
-    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    const id = setInterval(() => {
+      if (!pausedRef.current) setSeconds((s) => s + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, [game?.status]);
 
@@ -136,13 +172,6 @@ export const MinesweeperGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
       <Text style={styles.hint}>
         {game.status === 'won' ? 'Cleared! 🎉' : game.status === 'lost' ? 'Boom! Tap Play Again.' : 'Tap to dig · long-press to flag'}
       </Text>
-
-      {(game.status === 'won' || game.status === 'lost') && (
-        <TouchableOpacity style={styles.primaryBtn} onPress={newGame} activeOpacity={0.85}>
-          <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-          <Text style={styles.primaryBtnText}>Play Again</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 };
@@ -164,6 +193,4 @@ const styles = StyleSheet.create({
   cellMine: { backgroundColor: Colors.error },
   num: { fontSize: 16, fontWeight: '900' },
   hint: { color: Colors.textMuted, fontSize: 12, marginTop: 14 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26, marginTop: 16 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
 });

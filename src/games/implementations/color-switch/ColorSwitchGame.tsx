@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
@@ -14,15 +14,18 @@ import {
   stepColorSwitch,
   tapBounce,
 } from './colorSwitchLogic';
+import { usePausedRef } from '../shared/usePausedRef';
+import { visibleChangers } from './colorSwitchLogic';
 
 const PALETTE = ['#7557E8', '#F43F5E', '#F59E0B', '#10B981'];
 
-export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 480 });
   const [state, setState] = useState<ColorSwitchState>(createColorSwitchState);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -33,7 +36,7 @@ export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepColorSwitch(prev, dt));
+      if (!pausedRef.current) setState((prev) => stepColorSwitch(prev, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -62,12 +65,6 @@ export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
       setState((s) => tapBounce(s));
     }
   };
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    setState(startColorSwitch(createColorSwitchState()));
-  }, []);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -98,9 +95,9 @@ export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
             </React.Fragment>
           );
         })}
-        {state.changers.map((c, i) => (
-          <View key={i} style={[styles.changer, { top: c.y * area.h - 12, left: BALL_X * area.w - 12 }]}>
-            <Ionicons name="sync" size={24} color={Colors.primary} />
+        {visibleChangers(state).map((c, i) => (
+          <View key={i} style={[styles.changer, { top: c.y * area.h - 15 }]}> 
+            <View style={[styles.changerDot, { backgroundColor: PALETTE[(state.color + 1) % PALETTE.length] }]} />
           </View>
         ))}
 
@@ -109,19 +106,6 @@ export const ColorSwitchGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onG
         {state.status === 'ready' && (
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>TAP TO BOUNCE</Text>
-          </View>
-        )}
-        {state.status === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="color-filter" size={40} color={Colors.accentCoral} />
-              <Text style={styles.resultTitle}>Wrong colour!</Text>
-              <Text style={styles.resultSub}>{`${state.score} points`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
       </View>
@@ -139,15 +123,10 @@ const styles = StyleSheet.create({
   ballChip: { width: 26, height: 26, borderRadius: 13 },
   area: { flex: 1, backgroundColor: '#161826', borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
   seg: { position: 'absolute', borderRadius: 3 },
-  changer: { position: 'absolute' },
+  changer: { position: 'absolute', left: '50%', marginLeft: -12, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  changerDot: { width: 14, height: 14, borderRadius: 7 },
   ball: { position: 'absolute' },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   readyText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: 2 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(32,33,36,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 300, backgroundColor: Colors.surface, borderRadius: 22, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  resultTitle: { color: Colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 10 },
-  resultSub: { color: Colors.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 4, marginBottom: 18 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   hint: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 10 },
 });

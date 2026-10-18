@@ -134,3 +134,61 @@ export function toggleFlag(state: MineState, r: number, c: number): MineState {
   const flagCount = state.flagCount + (board[r][c].flagged ? 1 : -1);
   return { ...state, board, flagCount };
 }
+
+/** Snapshot of an in-progress game, persisted so the player can resume. */
+export interface MinesweeperProgress {
+  game: MineState;
+  seconds: number;
+  flagMode: boolean;
+}
+
+export function serializeMinesweeperProgress(
+  game: MineState,
+  seconds: number,
+  flagMode: boolean
+): MinesweeperProgress {
+  return { game, seconds, flagMode };
+}
+
+function isValidCell(value: unknown): value is Cell {
+  if (!value || typeof value !== 'object') return false;
+  const cell = value as Record<string, unknown>;
+  return (
+    typeof cell.mine === 'boolean' &&
+    typeof cell.revealed === 'boolean' &&
+    typeof cell.flagged === 'boolean' &&
+    typeof cell.adjacent === 'number'
+  );
+}
+
+/** Validates a persisted snapshot, returning `null` when it is unusable. */
+export function parseMinesweeperProgress(value: unknown): MinesweeperProgress | null {
+  if (!value || typeof value !== 'object') return null;
+  const snapshot = value as Record<string, unknown>;
+  const game = snapshot.game as Record<string, unknown> | undefined;
+  if (!game || typeof game !== 'object') return null;
+
+  const { rows, cols, mineCount, revealedCount, flagCount, status, board } = game;
+  if (typeof rows !== 'number' || typeof cols !== 'number') return null;
+  if (rows <= 0 || cols <= 0 || !Number.isInteger(rows) || !Number.isInteger(cols)) return null;
+  if (typeof mineCount !== 'number' || typeof revealedCount !== 'number' || typeof flagCount !== 'number') {
+    return null;
+  }
+  if (status !== 'playing' && status !== 'won' && status !== 'lost') return null;
+  if (!Array.isArray(board) || board.length !== rows) return null;
+  if (!board.every((row) => Array.isArray(row) && row.length === cols && row.every(isValidCell))) {
+    return null;
+  }
+
+  const secondsRaw = snapshot.seconds;
+  const seconds =
+    typeof secondsRaw === 'number' && Number.isFinite(secondsRaw) && secondsRaw >= 0
+      ? Math.floor(secondsRaw)
+      : 0;
+
+  return {
+    game: { board: board as Board, rows, cols, mineCount, status, revealedCount, flagCount },
+    seconds,
+    flagMode: snapshot.flagMode === true,
+  };
+}

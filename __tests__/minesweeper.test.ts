@@ -2,8 +2,10 @@ import {
   createEmptyBoard,
   createGame,
   neighbors,
+  parseMinesweeperProgress,
   placeMines,
   revealCell,
+  serializeMinesweeperProgress,
   toggleFlag,
 } from '../src/games/implementations/minesweeper/minesweeperLogic';
 
@@ -86,5 +88,58 @@ describe('Minesweeper — flags and win', () => {
       })
     );
     expect(g.status).toBe('won');
+  });
+});
+
+describe('Minesweeper — resumable progress snapshot', () => {
+  it('round-trips a snapshot through serialize/parse', () => {
+    const g = revealCell(createGame(9, 9, 10, 4, 4), 4, 4);
+    const parsed = parseMinesweeperProgress(serializeMinesweeperProgress(g, 42, true));
+    expect(parsed).not.toBeNull();
+    expect(parsed!.seconds).toBe(42);
+    expect(parsed!.flagMode).toBe(true);
+    expect(parsed!.game.status).toBe('playing');
+    expect(parsed!.game.revealedCount).toBe(g.revealedCount);
+  });
+
+  it('rejects a null or non-object snapshot', () => {
+    expect(parseMinesweeperProgress(null)).toBeNull();
+    expect(parseMinesweeperProgress(undefined)).toBeNull();
+    expect(parseMinesweeperProgress('nope')).toBeNull();
+    expect(parseMinesweeperProgress(42)).toBeNull();
+  });
+
+  it('rejects a snapshot whose board dimensions are inconsistent', () => {
+    const g = createGame(9, 9, 10, 4, 4);
+    expect(
+      parseMinesweeperProgress({ game: { ...g, board: g.board.slice(0, 3) }, seconds: 0, flagMode: false })
+    ).toBeNull();
+    expect(
+      parseMinesweeperProgress({ game: { ...g, cols: 4 }, seconds: 0, flagMode: false })
+    ).toBeNull();
+  });
+
+  it('rejects a snapshot with malformed cells or status', () => {
+    const g = createGame(9, 9, 10, 4, 4);
+    expect(
+      parseMinesweeperProgress({ game: { ...g, status: 'weird' }, seconds: 0, flagMode: false })
+    ).toBeNull();
+    const badBoard = g.board.map((row) => row.map((cell) => ({ ...cell })));
+    // @ts-expect-error deliberately corrupt a cell for the validation test
+    badBoard[0][0] = { mine: 'yes' };
+    expect(
+      parseMinesweeperProgress({ game: { ...g, board: badBoard }, seconds: 0, flagMode: false })
+    ).toBeNull();
+  });
+
+  it('sanitizes non-numeric seconds and non-boolean flagMode', () => {
+    const g = createGame(9, 9, 10, 4, 4);
+    const parsed = parseMinesweeperProgress({
+      game: g,
+      seconds: Number.NaN,
+      flagMode: 'yes',
+    });
+    expect(parsed?.seconds).toBe(0);
+    expect(parsed?.flagMode).toBe(false);
   });
 });

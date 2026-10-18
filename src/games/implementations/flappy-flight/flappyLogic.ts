@@ -35,6 +35,24 @@ export function createFlappyState(): FlappyState {
   return { y: 0.45, vy: 0, pipes: [], score: 0, status: 'ready', spawnTimer: 0.3, ground: GROUND };
 }
 
+/** Top edge of the bird's circular hitbox (normalized). */
+export function birdTop(y: number): number {
+  return y - BIRD_R;
+}
+
+/** Bottom edge of the bird's circular hitbox (normalized); the death plane. */
+export function birdBottom(y: number): number {
+  return y + BIRD_R;
+}
+
+/**
+ * On-screen half-extents (px) of the bird's hitbox for an arena of size w x h.
+ * The rendered sprite MUST use these so the drawn bird matches what collides.
+ */
+export function birdHitbox(w: number, h: number): { halfW: number; halfH: number } {
+  return { halfW: BIRD_R * w, halfH: BIRD_R * h };
+}
+
 export function startFlappy(state: FlappyState): FlappyState {
   if (state.status !== 'ready') return state;
   return { ...state, status: 'playing' };

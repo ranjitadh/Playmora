@@ -84,15 +84,24 @@ export function stepFallingDodge(state: FallingDodgeState, dt: number, cfg: Fall
     const minX = cfg.obstacleW / 2;
     const maxX = 1 - cfg.obstacleW / 2;
     if (cfg.lanes) {
+      // Pick one lane to leave open before rolling the rest. Without this the
+      // independent 50% rolls could fill every lane in a wave, which is an
+      // unavoidable death. Keeping one lane clear guarantees a dodgeable pattern.
+      const openLane = Math.floor(Math.random() * cfg.lanes);
+      let spawned = 0;
       for (let i = 0; i < cfg.lanes; i++) {
+        if (i === openLane) continue;
         if (Math.random() < 0.5) {
           const x = laneCenter(i, cfg.lanes);
           obstacles.push({ x, y: -cfg.obstacleH, w: cfg.obstacleW, h: cfg.obstacleH, scored: false });
+          spawned++;
         }
       }
-      // Ensure at least one obstacle so a lane pattern always appears.
-      if (obstacles.length === 0) {
-        const x = laneCenter(Math.floor(Math.random() * cfg.lanes), cfg.lanes);
+      // Ensure at least one obstacle so a lane pattern always appears (but keep
+      // the open lane free).
+      if (spawned === 0) {
+        const lane = openLane === 0 ? Math.min(1, cfg.lanes - 1) : 0;
+        const x = laneCenter(lane, cfg.lanes);
         obstacles.push({ x, y: -cfg.obstacleH, w: cfg.obstacleW, h: cfg.obstacleH, scored: false });
       }
     } else {

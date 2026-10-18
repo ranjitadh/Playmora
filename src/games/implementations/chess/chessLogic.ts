@@ -71,6 +71,24 @@ export function kingSquare(board: Board, color: Color): number {
   return -1;
 }
 
+export type ChessOutcome = 'checkmate' | 'stalemate' | 'draw';
+
+export interface ChessOutcomeReport {
+  outcome: ChessOutcome;
+  winner: Color | null;
+}
+
+/**
+ * Describes a finished game for the session layer, or null while play is still
+ * in progress. Because `makeMove` is a no-op once an outcome is set, the report
+ * is produced exactly once per terminal position, so callers can forward it to
+ * `onGameOver` without risk of duplicate notifications.
+ */
+export function outcomeReport(state: ChessState): ChessOutcomeReport | null {
+  if (state.outcome === 'in_progress') return null;
+  return { outcome: state.outcome, winner: state.winner };
+}
+
 /** Is `square` attacked by any piece of `byColor`? (Ignores castling/en-passant.) */
 export function isAttacked(board: Board, square: number, byColor: Color): boolean {
   const [r, c] = rc(square);

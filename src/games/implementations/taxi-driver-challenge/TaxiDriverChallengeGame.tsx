@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,9 +6,10 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { TaxiState, createTaxi, startTaxi, stepTaxi } from './taxiLogic';
-import { HudPill, ResultOverlay, racingStyles } from '../shared/racingHud';
+import { HudPill, racingStyles } from '../shared/racingHud';
+import { usePausedRef } from '../shared/usePausedRef';
 
-export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 440 });
   const [state, setState] = useState<TaxiState>(createTaxi);
   const inputRef = useRef({ x: 0, y: 0 });
@@ -17,6 +18,7 @@ export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpd
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
   const prevDelivered = useRef(0);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -35,7 +37,7 @@ export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpd
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepTaxi(prev, dt, inputRef.current));
+      if (!pausedRef.current) setState((prev) => stepTaxi(prev, dt, inputRef.current));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -58,14 +60,6 @@ export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpd
     const { width, height } = e.nativeEvent.layout;
     setArea({ w: width, h: height });
   };
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    prevDelivered.current = 0;
-    inputRef.current = { x: 0, y: 0 };
-    setState(startTaxi(createTaxi()));
-  }, []);
 
   const hold = (x: number, y: number) => ({
     onPressIn: () => {
@@ -102,9 +96,6 @@ export const TaxiDriverChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpd
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>PICK UP RIDERS</Text>
           </View>
-        )}
-        {state.status === 'over' && (
-          <ResultOverlay icon="time" title="Shift Over!" subtitle={`${state.delivered} fares · ${state.score} pts`} onRetry={restart} />
         )}
       </View>
 

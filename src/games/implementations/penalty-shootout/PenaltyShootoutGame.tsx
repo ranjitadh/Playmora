@@ -17,6 +17,8 @@ import {
   scoreOf,
   shoot,
 } from './penaltyLogic';
+import { usePausedRef } from '../shared/usePausedRef';
+import { PenaltyPhase, penaltyPrimaryDisabled, penaltyPrimaryLabel } from './penaltyUi';
 
 const GX0 = 0.07;
 const GX1 = 0.93;
@@ -25,7 +27,7 @@ const GY1 = 0.46;
 const ZONE_W = (GX1 - GX0) / 3;
 const ZONE_H = (GY1 - GY0) / 2;
 
-type Phase = 'aim' | 'meter' | 'result' | 'final';
+type Phase = PenaltyPhase;
 
 function zoneCol(z: number): number {
   return z % 3;
@@ -47,7 +49,7 @@ const RESULT_COLOR: Record<ShotResult, string> = {
   miss: Modern.amber,
 };
 
-export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
+export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 480 });
   const [state, setState] = useState<PenaltyState>(createPenalty);
   const [phase, setPhase] = useState<Phase>('aim');
@@ -58,6 +60,7 @@ export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(scoreOf(state));
@@ -84,7 +87,7 @@ export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
       if (!lastRef.current) lastRef.current = t;
       const dt = Math.min(0.05, (t - lastRef.current) / 1000);
       lastRef.current = t;
-      setMeter((m) => {
+      if (!pausedRef.current) setMeter((m) => {
         let next = m + dir * dt * 1.1;
         if (next > 1) {
           next = 1;
@@ -166,20 +169,9 @@ export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
   const py = (n: number) => n * area.h;
   const goal = { left: px(GX0), top: py(GY0), width: px(GX1 - GX0), height: py(GY1 - GY0) };
 
-  const btnLabel =
-    phase === 'aim'
-      ? zone === null
-        ? 'Pick a corner'
-        : 'Start kick'
-      : phase === 'meter'
-      ? 'Shoot!'
-      : phase === 'result'
-      ? state.outcome === 'over'
-        ? 'See results'
-        : 'Next kick'
-      : 'Play Again';
+  const btnLabel = penaltyPrimaryLabel(phase, zone !== null, state.outcome === 'over');
 
-  const btnDisabled = (phase === 'aim' && zone === null) || phase === 'final';
+  const btnDisabled = penaltyPrimaryDisabled(phase, zone !== null);
 
   return (
     <View style={styles.container}>
@@ -284,20 +276,6 @@ export const PenaltyShootoutGame: React.FC<GameSessionProps> = ({ onScoreUpdate,
             <Text style={styles.promptText}>TAP A CORNER OF THE GOAL</Text>
           </View>
         )}
-
-        {phase === 'final' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="trophy" size={40} color={Modern.amber} />
-              <Text style={styles.resultTitle}>{state.goals >= 3 ? 'Clinical!' : 'Full Time'}</Text>
-              <Text style={styles.resultSub}>{`${state.goals}/${MAX_ATTEMPTS} scored · ${scoreOf(state)} pts`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={primary} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.footer}>
@@ -346,10 +324,6 @@ const styles = StyleSheet.create({
   meterHint: { marginTop: 6, fontSize: 11, color: 'rgba(255,255,255,0.95)', fontWeight: '700' },
   prompt: { position: 'absolute', bottom: 14, left: 0, right: 0, alignItems: 'center' },
   promptText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.82)' },
-  card: { backgroundColor: Modern.surface, borderRadius: Modern.radius, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Modern.ink, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Modern.inkSoft, marginTop: 4, textAlign: 'center' },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Modern.accent, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 20 },
   primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   disabled: { opacity: 0.45 },

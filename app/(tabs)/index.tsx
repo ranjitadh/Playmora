@@ -291,7 +291,7 @@ export default function HomeScreen() {
                 <Ionicons
                   name={completed ? 'refresh' : 'play'}
                   size={18}
-                  color={completed ? Colors.accent : '#000'}
+                  color={completed ? Colors.accent : Colors.textInverse}
                 />
               </View>
             </View>

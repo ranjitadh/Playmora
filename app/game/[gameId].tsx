@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backBtnText: {
-    color: '#000',
+    color: Colors.textInverse,
     fontWeight: '800',
     fontSize: 14,
   },

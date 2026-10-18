@@ -1,5 +1,6 @@
 import {
   GROUND,
+  MAX_JUMPS,
   PLAYER_X,
   RunnerState,
   createRunnerState,
@@ -15,13 +16,38 @@ describe('Jump and Dodge — movement', () => {
   it('stands on the ground when ready', () => {
     const s = createRunnerState();
     expect(s.y).toBeCloseTo(playerCenterY(), 5);
+    expect(s.jumpsLeft).toBe(MAX_JUMPS);
   });
 
-  it('jumps only when grounded', () => {
-    const grounded = playing();
-    expect(jump(grounded).vy).toBeLessThan(0);
-    const airborne: RunnerState = { ...grounded, y: playerCenterY() - 0.2 };
-    expect(jump(airborne).vy).toBe(0);
+  it('jumps from the ground on the first tap', () => {
+    const jumped = jump(playing());
+    expect(jumped.vy).toBeLessThan(0);
+    expect(jumped.jumpsLeft).toBe(MAX_JUMPS - 1);
+  });
+
+  it('allows a second jump in mid-air', () => {
+    const first = jump(playing());
+    const second = jump({ ...first, y: playerCenterY() - 0.2, vy: 0 });
+    expect(second.vy).toBeLessThan(0);
+    expect(second.jumpsLeft).toBe(0);
+  });
+
+  it('ignores further jumps once both are used', () => {
+    const first = jump(playing());
+    const second = jump({ ...first, y: playerCenterY() - 0.2 });
+    const airborne: RunnerState = { ...second, y: playerCenterY() - 0.25 };
+    const third = jump(airborne);
+    expect(third).toBe(airborne);
+    expect(third.vy).toBe(second.vy);
+    expect(third.jumpsLeft).toBe(0);
+  });
+
+  it('refreshes the double jump after landing', () => {
+    let s = jump(playing());
+    s = jump({ ...s, y: playerCenterY() - 0.2 });
+    for (let i = 0; i < 20; i++) s = step(s, 0.05);
+    expect(s.y).toBeCloseTo(playerCenterY(), 3);
+    expect(s.jumpsLeft).toBe(MAX_JUMPS);
   });
 
   it('falls back to the ground under gravity', () => {

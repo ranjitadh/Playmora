@@ -13,11 +13,12 @@ import {
   spawnEntity,
   stepPhysics,
 } from './fruitSliceLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const SPAWN_EVERY = 0.8;
 const BOMB_CHANCE = 0.18;
 
-export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled }) => {
+export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, onExit, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 460 });
   const [state, setState] = useState<FruitState>(createFruitGame);
   const rafRef = useRef<number | null>(null);
@@ -26,6 +27,7 @@ export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGa
   const finishedRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const stateRef = useRef<FruitState>(state);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     stateRef.current = state;
@@ -40,15 +42,17 @@ export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGa
       if (!lastRef.current) lastRef.current = t;
       const dt = Math.min(0.05, (t - lastRef.current) / 1000);
       lastRef.current = t;
-      spawnAccRef.current += dt;
-      setState((prev) => {
-        let s = stepPhysics(prev, dt);
-        if (spawnAccRef.current >= SPAWN_EVERY) {
-          spawnAccRef.current -= SPAWN_EVERY;
-          s = spawnEntity(s, { forceBomb: Math.random() < BOMB_CHANCE });
-        }
-        return s;
-      });
+      if (!pausedRef.current) {
+        spawnAccRef.current += dt;
+        setState((prev) => {
+          let s = stepPhysics(prev, dt);
+          if (spawnAccRef.current >= SPAWN_EVERY) {
+            spawnAccRef.current -= SPAWN_EVERY;
+            s = spawnEntity(s, { forceBomb: Math.random() < BOMB_CHANCE });
+          }
+          return s;
+        });
+      }
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -106,16 +110,6 @@ export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGa
     },
   };
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    spawnAccRef.current = 0;
-    lastPointRef.current = null;
-    const g = createFruitGame();
-    stateRef.current = g;
-    setState(g);
-    if (!isMuted) audioService.playSound('tap');
-  }, [isMuted]);
-
   const rpx = 0.055 * area.w;
 
   return (
@@ -157,20 +151,6 @@ export const FruitSliceGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGa
             <Text style={styles.readySub}>Avoid the black bombs</Text>
           </View>
         )}
-
-        {state.outcome === 'lost' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="close-circle" size={40} color={Modern.coral} />
-              <Text style={styles.resultTitle}>Game Over</Text>
-              <Text style={styles.resultSub}>{`${state.score} points · ${state.sliced} sliced`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
       </View>
 
       <View style={styles.footer}>
@@ -196,12 +176,6 @@ const styles = StyleSheet.create({
   ready: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   readyText: { color: Modern.sky, fontSize: 20, fontWeight: '900', letterSpacing: 2 },
   readySub: { color: '#8A93A6', fontSize: 13, marginTop: 6 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.82)' },
-  card: { backgroundColor: Modern.surface, borderRadius: Modern.radius, padding: 24, alignItems: 'center', width: 240 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Modern.ink, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Modern.inkSoft, marginTop: 4, textAlign: 'center' },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Modern.accent, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24, marginTop: 16 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10 },
   hint: { color: Modern.inkSoft, fontSize: 12 },
   exitRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },

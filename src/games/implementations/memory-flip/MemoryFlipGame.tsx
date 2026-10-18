@@ -4,6 +4,7 @@ import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
+import { usePausedRef } from '../shared/usePausedRef';
 
 interface CardItem {
   id: number;
@@ -29,6 +30,7 @@ export const MemoryFlipGame: React.FC<GameSessionProps> = ({
   onGameOver,
   isMuted,
   isHapticsEnabled,
+  isPaused,
 }) => {
   const [deck, setDeck] = useState<CardItem[]>(() => generateDeck());
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
@@ -37,12 +39,13 @@ export const MemoryFlipGame: React.FC<GameSessionProps> = ({
   const [seconds, setSeconds] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const isFinishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   // Timer loop
   useEffect(() => {
     if (isFinishedRef.current) return;
     const interval = setInterval(() => {
-      setSeconds((prev) => prev + 1);
+      if (!pausedRef.current) setSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
   }, []);

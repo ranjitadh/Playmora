@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 
-import { Board, BOARD_SIZE, createEmptyBoard, spawnRandomTile, slideRow, hasMovesRemaining } from './numberMergeLogic';
+import { Board, BOARD_SIZE, applyMove, createEmptyBoard, hasMovesRemaining, MoveDirection, spawnRandomTile } from './numberMergeLogic';
 
 const TILE_COLORS: Record<number, { bg: string; text: string }> = {
   2: { bg: '#1E293B', text: '#F8FAFC' },
@@ -45,75 +45,15 @@ export const NumberMergeGame: React.FC<GameSessionProps> = ({
   const [bestTile, setBestTile] = useState(4);
   const isGameOverRef = useRef(false);
 
-  // Swipe pan responder
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        const { dx, dy } = gestureState;
-        const absX = Math.abs(dx);
-        const absY = Math.abs(dy);
+  const handleMove = useCallback(
+    (direction: MoveDirection) => {
+      if (isGameOverRef.current) return;
 
-        if (Math.max(absX, absY) < 25) return; // Ignore small twitches
+      const { board: moved, gained, changed } = applyMove(board, direction);
+      if (!changed) return;
 
-        if (absX > absY) {
-          if (dx > 0) handleMove('right');
-          else handleMove('left');
-        } else {
-          if (dy > 0) handleMove('down');
-          else handleMove('up');
-        }
-      },
-    })
-  ).current;
-
-  const handleMove = (direction: 'left' | 'right' | 'up' | 'down') => {
-    if (isGameOverRef.current) return;
-
-    let changed = false;
-    let turnScore = 0;
-    const newBoard = createEmptyBoard();
-
-    if (direction === 'left') {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        const { newRow, scoreGained } = slideRow(board[r]);
-        newBoard[r] = newRow;
-        turnScore += scoreGained;
-        if (newRow.some((val, idx) => val !== board[r][idx])) changed = true;
-      }
-    } else if (direction === 'right') {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        const reversed = [...board[r]].reverse();
-        const { newRow, scoreGained } = slideRow(reversed);
-        newBoard[r] = newRow.reverse();
-        turnScore += scoreGained;
-        if (newBoard[r].some((val, idx) => val !== board[r][idx])) changed = true;
-      }
-    } else if (direction === 'up') {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        const column = [board[0][c], board[1][c], board[2][c], board[3][c]];
-        const { newRow, scoreGained } = slideRow(column);
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          newBoard[r][c] = newRow[r];
-        }
-        turnScore += scoreGained;
-        if (column.some((val, idx) => val !== newRow[idx])) changed = true;
-      }
-    } else if (direction === 'down') {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        const column = [board[3][c], board[2][c], board[1][c], board[0][c]];
-        const { newRow, scoreGained } = slideRow(column);
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          newBoard[3 - r][c] = newRow[r];
-        }
-        turnScore += scoreGained;
-        if (column.some((val, idx) => val !== newRow[idx])) changed = true;
-      }
-    }
-
-    if (changed) {
-      const spawned = spawnRandomTile(newBoard);
-      const updatedScore = score + turnScore;
+      const spawned = spawnRandomTile(moved);
+      const updatedScore = score + gained;
 
       // Find highest tile
       let maxTile = bestTile;
@@ -128,7 +68,7 @@ export const NumberMergeGame: React.FC<GameSessionProps> = ({
       setBestTile(maxTile);
       onScoreUpdate(updatedScore);
 
-      if (turnScore > 0) {
+      if (gained > 0) {
         if (!isMuted) audioService.playSound('match');
         if (isHapticsEnabled) hapticsService.lightImpact();
       }
@@ -140,8 +80,38 @@ export const NumberMergeGame: React.FC<GameSessionProps> = ({
         if (isHapticsEnabled) hapticsService.error();
         onGameOver(updatedScore, { highestTile: maxTile });
       }
-    }
-  };
+    },
+    [board, score, bestTile, isMuted, isHapticsEnabled, onScoreUpdate, onGameOver]
+  );
+
+  // The PanResponder is created once, so it must call through a ref that always
+  // points at the latest `handleMove`. Without this the swipe handler would
+  // capture the first render's board/score and operate on stale state.
+  const handleMoveRef = useRef(handleMove);
+  useEffect(() => {
+    handleMoveRef.current = handleMove;
+  }, [handleMove]);
+
+  const panResponderRef = useRef<ReturnType<typeof PanResponder.create> | null>(null);
+  if (!panResponderRef.current) {
+    panResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderRelease: (_evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        const { dx, dy } = gestureState;
+        const absX = Math.abs(dx);
+        const absY = Math.abs(dy);
+
+        if (Math.max(absX, absY) < 25) return; // Ignore small twitches
+
+        if (absX > absY) {
+          handleMoveRef.current(dx > 0 ? 'right' : 'left');
+        } else {
+          handleMoveRef.current(dy > 0 ? 'down' : 'up');
+        }
+      },
+    });
+  }
+  const panResponder = panResponderRef.current;
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>

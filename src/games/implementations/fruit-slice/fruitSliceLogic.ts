@@ -45,6 +45,7 @@ export interface SpawnOptions {
 
 /** Launches one entity from the bottom with an upward, spread velocity. */
 export function spawnEntity(state: FruitState, opts: SpawnOptions = {}): FruitState {
+  if (state.outcome !== 'in_progress') return state;
   const kind: EntityKind = opts.forceBomb ? 'bomb' : 'fruit';
   const x = 0.15 + Math.random() * 0.7;
   const vy = -(1.15 + Math.random() * 0.35);
@@ -64,6 +65,7 @@ export function spawnEntity(state: FruitState, opts: SpawnOptions = {}): FruitSt
 
 /** Advances physics by `dt` seconds, culling entities that fall off-screen. */
 export function stepPhysics(state: FruitState, dt: number): FruitState {
+  if (state.outcome !== 'in_progress') return state;
   const kept: Entity[] = [];
   let lives = state.lives;
   for (const e of state.entities) {

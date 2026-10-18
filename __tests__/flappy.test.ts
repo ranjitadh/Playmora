@@ -1,6 +1,11 @@
 import {
   BIRD_R,
+  BIRD_X,
   FlappyState,
+  GROUND,
+  birdBottom,
+  birdHitbox,
+  birdTop,
   createFlappyState,
   flap,
   startFlappy,
@@ -70,5 +75,40 @@ describe('Flappy — collisions', () => {
     };
     expect(step(s, 0.001).score).toBe(1);
     expect(BIRD_R).toBeGreaterThan(0);
+  });
+});
+
+describe('Flappy — ground plane / hitbox alignment', () => {
+  it('puts the death plane exactly at the visible ground strip', () => {
+    // The strip is drawn from GROUND; the bird dies once its bottom reaches it.
+    expect(birdBottom(GROUND - BIRD_R)).toBeCloseTo(GROUND, 10);
+    // A bird resting with its bottom exactly on the strip is already fatal.
+    const touching: FlappyState = { ...playing(), y: GROUND - BIRD_R, vy: 0, spawnTimer: 99 };
+    expect(step(touching, 0.001).status).toBe('over');
+  });
+
+  it('does not die while still clearly above the strip', () => {
+    const safe: FlappyState = { ...playing(), y: GROUND - BIRD_R - 0.05, vy: 0, spawnTimer: 99 };
+    expect(step(safe, 0.02).status).toBe('playing');
+  });
+
+  it('puts the ceiling death plane at the top edge of the hitbox', () => {
+    expect(birdTop(BIRD_R)).toBeCloseTo(0, 10);
+    const above: FlappyState = { ...playing(), y: BIRD_R - 0.01, vy: 0, spawnTimer: 99 };
+    expect(step(above, 0.001).status).toBe('over');
+  });
+
+  it('reports a hitbox that matches the bird sprite dimensions (size-aware)', () => {
+    const wide = birdHitbox(400, 400);
+    expect(wide.halfW).toBeCloseTo(BIRD_R * 400, 10);
+    expect(wide.halfH).toBeCloseTo(BIRD_R * 400, 10);
+    // Non-square arenas: the vertical extent must follow the arena height,
+    // which is what the collision math uses (not the width).
+    const tall = birdHitbox(300, 600);
+    expect(wide.halfW).toBeCloseTo(BIRD_R * 400, 10);
+    expect(birdHitbox(400, 400).halfW).toBeCloseTo(BIRD_R * 400, 10);
+    expect(wide.halfH).toBeCloseTo(wide.halfW, 10);
+    expect((birdHitbox(300, 600)).halfH).toBeCloseTo(BIRD_R * 600, 10);
+    void BIRD_X;
   });
 });

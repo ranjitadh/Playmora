@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,18 +6,20 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { ROI, KartState, createKart, roadCenter, startKart, stepKart } from './miniKartLogic';
-import { HudPill, ResultOverlay, racingStyles } from '../shared/racingHud';
+import { HudPill, racingStyles } from '../shared/racingHud';
+import { usePausedRef } from '../shared/usePausedRef';
 
 const ROWS = 44;
 const VIEW_DIST = 1.3;
 
-export const MiniKartRacingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const MiniKartRacingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 440 });
   const [state, setState] = useState<KartState>(createKart);
   const steerRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -28,7 +30,7 @@ export const MiniKartRacingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepKart(prev, dt, steerRef.current));
+      if (!pausedRef.current) setState((prev) => stepKart(prev, dt, steerRef.current));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -51,13 +53,6 @@ export const MiniKartRacingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
     const { width, height } = e.nativeEvent.layout;
     setArea({ w: width, h: height });
   };
-
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    steerRef.current = 0;
-    setState(startKart(createKart()));
-  }, []);
 
   const hold = (value: number) => ({
     onPressIn: () => {
@@ -93,16 +88,17 @@ export const MiniKartRacingGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
           <View key={i} style={[styles.road, { left: r.left, width: r.width, top: r.top, height: rowH + 1 }]} />
         ))}
         <View style={[styles.kart, { left: kartLeft }]}>
-          <Ionicons name="car-sport" size={32} color={Colors.textInverse} />
+          <View style={styles.kartBody} />
+          <View style={[styles.kartWheel, styles.kartWheelFrontLeft]} />
+          <View style={[styles.kartWheel, styles.kartWheelFrontRight]} />
+          <View style={[styles.kartWheel, styles.kartWheelRearLeft]} />
+          <View style={[styles.kartWheel, styles.kartWheelRearRight]} />
         </View>
 
         {state.status === 'ready' && (
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>HOLD LEFT / RIGHT</Text>
           </View>
-        )}
-        {state.status === 'over' && (
-          <ResultOverlay icon="flag" title="Finished!" subtitle={`${state.laps} laps · ${state.score} pts`} onRetry={restart} />
         )}
       </View>
 
@@ -124,7 +120,36 @@ const styles = StyleSheet.create({
   area: { flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border, backgroundColor: '#3F6212' },
   grass: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#4D7C0F' },
   road: { position: 'absolute', backgroundColor: '#3A3F4C' },
-  kart: { position: 'absolute', bottom: 10, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  kart: {
+    position: 'absolute',
+    bottom: 12,
+    width: 32,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  kartBody: {
+    width: 24,
+    height: 28,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+    marginTop: 2,
+  },
+  kartWheel: {
+    position: 'absolute',
+    width: 5,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: '#1F2937',
+  },
+  kartWheelFrontLeft: { top: 6, left: -3 },
+  kartWheelFrontRight: { top: 6, right: -3 },
+  kartWheelRearLeft: { bottom: 6, left: -3 },
+  kartWheelRearRight: { bottom: 6, right: -3 },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   readyText: { color: Colors.textInverse, fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   controls: { flexDirection: 'row', gap: 12, marginTop: 12 },

@@ -1,132 +1,84 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
+import { usePausedRef } from '../shared/usePausedRef';
+import {
+  ReflexState,
+  Target,
+  TOTAL_RUSH_SECONDS,
+  createReflexState,
+  safeOffset,
+  stepReflex,
+  tapTarget,
+  targetSize,
+} from './reflexLogic';
 
-interface Target {
-  id: number;
-  xPercent: number; // 10% - 85%
-  yPercent: number; // 10% - 85%
-  type: 'green' | 'cyan' | 'star' | 'skull';
-  expiresAt: number;
-}
-
-const TOTAL_RUSH_SECONDS = 30;
+const MAX_STEP_SECONDS = 0.1;
 
 export const ReflexRushGame: React.FC<GameSessionProps> = ({
   onScoreUpdate,
   onGameOver,
   isMuted,
   isHapticsEnabled,
+  isPaused,
 }) => {
-  const [score, setScore] = useState(0);
-  const [combo, setCombo] = useState(1);
-  const [timeLeft, setTimeLeft] = useState(TOTAL_RUSH_SECONDS);
-  const [targets, setTargets] = useState<Target[]>([]);
-  const isGameOverRef = useRef(false);
-  const targetIdCounter = useRef(0);
+  const [state, setState] = useState<ReflexState>(createReflexState);
+  const [arena, setArena] = useState({ w: 0, h: 0 });
+  const rafRef = useRef<number | null>(null);
+  const lastRef = useRef(0);
+  const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
-  // Countdown timer
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          isGameOverRef.current = true;
-          handleEnd();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    onScoreUpdate(state.score);
+  }, [state.score, onScoreUpdate]);
 
-    return () => clearInterval(timer);
+  useEffect(() => {
+    const loop = (t: number) => {
+      if (!lastRef.current) lastRef.current = t;
+      const dt = Math.min(MAX_STEP_SECONDS, (t - lastRef.current) / 1000);
+      lastRef.current = t;
+      if (!pausedRef.current) setState((prev) => stepReflex(prev, dt));
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      lastRef.current = 0;
+    };
   }, []);
 
-  const handleEnd = () => {
-    setTargets([]);
-    if (!isMuted) audioService.playSound('victory');
-    onGameOver(score, { timeSeconds: TOTAL_RUSH_SECONDS });
-  };
-
-  // Target spawner and cleanup loop
   useEffect(() => {
-    if (isGameOverRef.current) return;
-
-    const spawner = setInterval(() => {
-      const now = Date.now();
-
-      setTargets((prev) => {
-        // Remove expired targets
-        const filtered = prev.filter((t) => t.expiresAt > now);
-
-        // Keep 3 to 5 targets on screen
-        if (filtered.length < 4) {
-          const rand = Math.random();
-          let type: Target['type'] = 'green';
-          let lifetime = 1600;
-
-          if (rand < 0.25) {
-            type = 'skull'; // 25% hazard
-            lifetime = 2000;
-          } else if (rand < 0.55) {
-            type = 'cyan';
-            lifetime = 1300;
-          } else if (rand < 0.7) {
-            type = 'star';
-            lifetime = 1100;
-          }
-
-          filtered.push({
-            id: ++targetIdCounter.current,
-            xPercent: 10 + Math.random() * 75,
-            yPercent: 10 + Math.random() * 75,
-            type,
-            expiresAt: now + lifetime,
-          });
-        }
-        return filtered;
-      });
-    }, 400);
-
-    return () => clearInterval(spawner);
-  }, []);
+    if (state.status === 'over' && !finishedRef.current) {
+      finishedRef.current = true;
+      if (!isMuted) audioService.playSound('victory');
+      onGameOver(state.score, { timeSeconds: TOTAL_RUSH_SECONDS });
+    }
+  }, [state.status, state.score, onGameOver, isMuted]);
 
   const handleTargetTap = (target: Target) => {
-    if (isGameOverRef.current) return;
+    const { event } = tapTarget(state, target.id);
+    setState((prev) => tapTarget(prev, target.id).state);
+    if (!event) return;
 
-    // Remove tapped target
-    setTargets((prev) => prev.filter((t) => t.id !== target.id));
-
-    if (target.type === 'skull') {
-      // Danger decoy tapped
-      setCombo(1);
-      const penalizedScore = Math.max(0, score - 20);
-      setScore(penalizedScore);
-      onScoreUpdate(penalizedScore);
-
+    if (event.kind === 'penalty') {
       if (!isMuted) audioService.playSound('error');
       if (isHapticsEnabled) hapticsService.heavyImpact();
     } else {
-      // Valid target tapped
-      let basePoints = 10;
-      if (target.type === 'cyan') basePoints = 20;
-      if (target.type === 'star') basePoints = 35;
-
-      const gained = basePoints * combo;
-      const newScore = score + gained;
-      const nextCombo = Math.min(5, combo + 1);
-
-      setScore(newScore);
-      setCombo(nextCombo);
-      onScoreUpdate(newScore);
-
-      if (!isMuted) audioService.playSound(combo > 2 ? 'combo' : 'pop');
+      if (!isMuted) audioService.playSound(event.sound);
       if (isHapticsEnabled) hapticsService.lightImpact();
     }
   };
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setArena({ w: width, h: height });
+  };
+
+  const seconds = Math.ceil(state.timeLeft);
 
   return (
     <View style={styles.container}>
@@ -134,43 +86,41 @@ export const ReflexRushGame: React.FC<GameSessionProps> = ({
       <View style={styles.hudRow}>
         <View style={styles.hudBox}>
           <Text style={styles.hudLabel}>SCORE</Text>
-          <Text style={styles.hudValue}>{score}</Text>
+          <Text style={styles.hudValue}>{state.score}</Text>
         </View>
 
-        {combo > 1 && (
+        {state.combo > 1 && (
           <View style={styles.comboBadge}>
-            <Text style={styles.comboText}>{combo}x MULTIPLIER</Text>
+            <Text style={styles.comboText}>{state.combo}x MULTIPLIER</Text>
           </View>
         )}
 
         <View style={styles.hudBox}>
           <Text style={styles.hudLabel}>RUSH TIME</Text>
-          <Text style={[styles.hudValue, timeLeft <= 5 && styles.urgentText]}>
-            {timeLeft}s
+          <Text style={[styles.hudValue, seconds <= 5 && styles.urgentText]}>
+            {seconds}s
           </Text>
         </View>
       </View>
 
       {/* Target Arena */}
-      <View style={styles.arena}>
-        {targets.map((t) => {
+      <View style={styles.arena} onLayout={onLayout}>
+        {state.targets.map((t) => {
           let bg = Colors.accent;
           let label = '⚡';
-          let size = 64;
 
           if (t.type === 'cyan') {
             bg = Colors.primary;
             label = '◆';
-            size = 58;
           } else if (t.type === 'star') {
             bg = Colors.accentGold;
             label = '★';
-            size = 52;
           } else if (t.type === 'skull') {
             bg = Colors.accentCoral;
             label = '☠';
-            size = 60;
           }
+
+          const size = targetSize(t.type);
 
           return (
             <TouchableOpacity
@@ -178,8 +128,8 @@ export const ReflexRushGame: React.FC<GameSessionProps> = ({
               style={[
                 styles.targetBubble,
                 {
-                  left: `${t.xPercent}%`,
-                  top: `${t.yPercent}%`,
+                  left: safeOffset(t.x, size, arena.w),
+                  top: safeOffset(t.y, size, arena.h),
                   width: size,
                   height: size,
                   borderRadius: size / 2,

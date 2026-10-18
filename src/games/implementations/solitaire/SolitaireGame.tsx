@@ -250,20 +250,6 @@ export const SolitaireGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGam
         ))}
       </View>
 
-      {sol.outcome === 'won' && (
-        <View style={styles.overlay}>
-          <View style={styles.resultCard}>
-            <Ionicons name="trophy" size={40} color={Retro.ink} />
-            <Text style={styles.resultTitle}>You Win!</Text>
-            <Text style={styles.resultSub}>{`${sol.score} pts · ${sol.moves} moves`}</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={newDeal} activeOpacity={0.85}>
-              <Ionicons name="refresh" size={18} color={Retro.plastic} />
-              <Text style={styles.primaryBtnText}>New Deal</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       <View style={styles.footer}>
         <TouchableOpacity style={styles.primaryBtn} onPress={newDeal} activeOpacity={0.85}>
           <Ionicons name="shuffle" size={18} color={Retro.plastic} />
@@ -295,10 +281,6 @@ const styles = StyleSheet.create({
   cardSelected: { borderColor: Retro.frameDark, borderWidth: 3 },
   rank: { fontSize: 16, fontWeight: '900', position: 'absolute', top: 4, left: 6 },
   suit: { fontSize: 20, fontWeight: '900' },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(47,44,28,0.55)' },
-  resultCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, alignItems: 'center', width: 250 },
-  resultTitle: { fontSize: 20, fontWeight: '900', color: Colors.textPrimary, marginTop: 8 },
-  resultSub: { fontSize: 13, color: Colors.textMuted, marginTop: 4 },
   primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Retro.ink, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 20 },
   primaryBtnText: { color: Retro.plastic, fontSize: 15, fontWeight: '800' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14 },

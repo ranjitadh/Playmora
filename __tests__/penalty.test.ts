@@ -8,6 +8,10 @@ import {
   scoreOf,
   shoot,
 } from '../src/games/implementations/penalty-shootout/penaltyLogic';
+import {
+  penaltyPrimaryDisabled,
+  penaltyPrimaryLabel,
+} from '../src/games/implementations/penalty-shootout/penaltyUi';
 
 describe('Penalty Shootout — shot resolution', () => {
   it('scores a goal when the keeper dives elsewhere', () => {
@@ -71,5 +75,36 @@ describe('Penalty Shootout — run of penalties', () => {
     let s = createPenalty();
     for (let i = 0; i < MAX_ATTEMPTS; i++) s = shoot(s, 1, 0.9, 1, 0);
     expect(scoreOf(s)).toBeGreaterThan(500);
+  });
+});
+
+describe('Penalty Shootout — final-phase Play Again', () => {
+  it('keeps the primary button enabled in the final phase', () => {
+    expect(penaltyPrimaryDisabled('final', true)).toBe(false);
+    expect(penaltyPrimaryDisabled('final', false)).toBe(false);
+  });
+
+  it('labels the final-phase button "Play Again"', () => {
+    expect(penaltyPrimaryLabel('final', true, true)).toBe('Play Again');
+  });
+
+  it('still blocks shooting until a target is picked', () => {
+    expect(penaltyPrimaryDisabled('aim', false)).toBe(true);
+    expect(penaltyPrimaryDisabled('aim', true)).toBe(false);
+  });
+
+  it('restarts to a fresh run from the final state', () => {
+    let s = createPenalty();
+    for (let i = 0; i < MAX_ATTEMPTS; i++) s = shoot(s, 1, 0.9, 1, 0);
+    expect(s.outcome).toBe('over');
+
+    // The Play Again handler resets to a fresh run.
+    const restarted = createPenalty();
+    expect(restarted.outcome).toBe('in_progress');
+    expect(restarted.attempt).toBe(0);
+    expect(restarted.goals).toBe(0);
+    expect(restarted.outcomes).toHaveLength(0);
+    // And the run is immediately playable again.
+    expect(shoot(restarted, 1, 0.9, 1, 0).outcomes).toHaveLength(1);
   });
 });

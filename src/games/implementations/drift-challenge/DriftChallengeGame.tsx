@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
@@ -6,15 +6,17 @@ import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
 import { BAND, R0, DriftState, createDrift, startDrift, stepDrift } from './driftLogic';
-import { HudPill, ResultOverlay, racingStyles } from '../shared/racingHud';
+import { usePausedRef } from '../shared/usePausedRef';
+import { HudPill, racingStyles } from '../shared/racingHud';
 
-export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 440 });
   const [state, setState] = useState<DriftState>(createDrift);
   const steerRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -25,7 +27,9 @@ export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => stepDrift(prev, dt, steerRef.current));
+      if (!pausedRef.current && state.status === 'playing') {
+        setState((prev) => stepDrift(prev, dt, steerRef.current));
+      }
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -33,16 +37,16 @@ export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       lastRef.current = 0;
     };
-  }, []);
+  }, [state.status]);
 
   useEffect(() => {
     if (state.status === 'over' && !finishedRef.current) {
       finishedRef.current = true;
-      if (!isMuted) audioService.playSound('game_over');
+      if (!isPaused && !isMuted) audioService.playSound('game_over');
       if (isHapticsEnabled) hapticsService.error();
       onGameOver(state.score, {});
     }
-  }, [state.status, state.score, onGameOver, isMuted, isHapticsEnabled]);
+  }, [state.status, state.score, onGameOver, isPaused, isMuted, isHapticsEnabled]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -50,17 +54,11 @@ export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
   };
 
   const start = () => setState((s) => startDrift(s));
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    steerRef.current = 0;
-    setState(startDrift(createDrift()));
-  }, []);
 
   const hold = (value: number) => ({
     onPressIn: () => {
       if (state.status === 'ready') start();
-      steerRef.current = value;
+      if (!isPaused) steerRef.current = value;
     },
     onPressOut: () => {
       steerRef.current = 0;
@@ -87,15 +85,29 @@ export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
 
       <View style={styles.area} onLayout={onLayout}>
         <View style={[styles.ring, { left: cx - ringOuter, top: cy - ringOuter, width: ringOuter * 2, height: ringOuter * 2, borderRadius: ringOuter, borderWidth: ringThick }]} />
-        <View style={[styles.kart, { left: kx - 10, top: ky - 10, backgroundColor: onTrack ? Colors.accent : Colors.accentCoral }]} />
+        <View
+          style={[
+            styles.kart,
+            {
+              left: kx - 14,
+              top: ky - 20,
+              transform: [
+                { rotate: `${state.angle}rad` },
+                { translateY: state.r > R0 ? 1 : 0 },
+              ],
+              backgroundColor: onTrack ? Colors.accent : Colors.accentCoral,
+            },
+          ]}
+        >
+          <View style={styles.kartBody} />
+          <View style={[styles.kartWheel, styles.kartWheelFront]} />
+          <View style={[styles.kartWheel, styles.kartWheelRear]} />
+        </View>
 
         {state.status === 'ready' && (
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>HOLD TO DRIFT</Text>
           </View>
-        )}
-        {state.status === 'over' && (
-          <ResultOverlay icon="flame" title="Spun Out!" subtitle={`${state.score} drift points`} onRetry={restart} />
         )}
       </View>
 
@@ -118,7 +130,34 @@ export const DriftChallengeGame: React.FC<GameSessionProps> = ({ onScoreUpdate, 
 const styles = StyleSheet.create({
   area: { flex: 1, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border, backgroundColor: '#22262F' },
   ring: { position: 'absolute', borderColor: '#4B5563' },
-  kart: { position: 'absolute', width: 20, height: 20, borderRadius: 10 },
+  kart: {
+    position: 'absolute',
+    width: 28,
+    height: 40,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  kartBody: {
+    width: 20,
+    height: 24,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+    marginTop: 4,
+  },
+  kartWheel: {
+    position: 'absolute',
+    width: 6,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: '#1F2937',
+  },
+  kartWheelFront: { top: 8, left: -3 },
+  kartWheelRear: { bottom: 8, left: -3 },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   readyText: { color: Colors.textInverse, fontSize: 18, fontWeight: '900', letterSpacing: 2 },
   controls: { flexDirection: 'row', gap: 12, marginTop: 12 },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { CATEGORIES } from '../games/catalog';
-import { Colors } from '../theme/colors';
+import { Colors, getReadableTextColor } from '../theme/colors';
 
 interface CategoryChipProps {
   selectedCategory: string | null;
@@ -29,7 +29,13 @@ export const CategoryChip: React.FC<CategoryChipProps> = ({
         accessibilityState={{ selected: selectedCategory === null }}
       >
         <Text
-          style={[styles.chipText, selectedCategory === null && styles.activeChipText]}
+          style={[
+            styles.chipText,
+            selectedCategory === null && {
+              color: getReadableTextColor(Colors.primary),
+              fontWeight: '800',
+            },
+          ]}
         >
           All Games
         </Text>
@@ -55,7 +61,12 @@ export const CategoryChip: React.FC<CategoryChipProps> = ({
             accessibilityHint="Filters the game list to this category"
             accessibilityState={{ selected: isSelected }}
           >
-            <Text style={[styles.chipText, isSelected && styles.activeChipText]}>
+            <Text
+              style={[
+                styles.chipText,
+                isSelected && { color: getReadableTextColor(cat.color) },
+              ]}
+            >
               {cat.name}
             </Text>
           </TouchableOpacity>
@@ -89,9 +100,5 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
-  },
-  activeChipText: {
-    color: '#000',
-    fontWeight: '800',
   },
 });

@@ -1,18 +1,20 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameSessionProps } from '../../types';
 import { Colors } from '../../../theme/colors';
 import { audioService } from '../../../services/audioService';
 import { hapticsService } from '../../../services/hapticsService';
-import { BIRD_R, BIRD_X, FlappyState, PIPE_W, createFlappyState, flap, startFlappy, step } from './flappyLogic';
+import { BIRD_X, FlappyState, GROUND, PIPE_W, birdHitbox, createFlappyState, flap, startFlappy, step } from './flappyLogic';
+import { usePausedRef } from '../shared/usePausedRef';
 
-export const FlappyFlightGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled }) => {
+export const FlappyFlightGame: React.FC<GameSessionProps> = ({ onScoreUpdate, onGameOver, isMuted, isHapticsEnabled, isPaused }) => {
   const [area, setArea] = useState({ w: 340, h: 480 });
   const [state, setState] = useState<FlappyState>(createFlappyState);
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const finishedRef = useRef(false);
+  const pausedRef = usePausedRef(isPaused);
 
   useEffect(() => {
     onScoreUpdate(state.score);
@@ -23,7 +25,7 @@ export const FlappyFlightGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
       if (!lastRef.current) lastRef.current = t;
       const dt = (t - lastRef.current) / 1000;
       lastRef.current = t;
-      setState((prev) => step(prev, dt));
+      if (!pausedRef.current) setState((prev) => step(prev, dt));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -53,18 +55,10 @@ export const FlappyFlightGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
     }
   };
 
-  const restart = useCallback(() => {
-    finishedRef.current = false;
-    lastRef.current = 0;
-    setState(startFlappy(createFlappyState()));
-  }, []);
-
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setArea({ w: width, h: height });
   };
-
-  const birdSize = BIRD_R * 2 * area.w;
 
   return (
     <View style={styles.container}>
@@ -90,27 +84,22 @@ export const FlappyFlightGame: React.FC<GameSessionProps> = ({ onScoreUpdate, on
           );
         })}
 
-        <View style={styles.ground} />
-        <View style={[styles.bird, { width: birdSize * 1.4, height: birdSize, left: BIRD_X * area.w - birdSize / 2, top: state.y * area.h - birdSize / 2 }]}>
-          <Ionicons name="airplane" size={birdSize} color={Colors.accentGold} />
-        </View>
+        {/* The visible ground must line up with the GROUND death plane, otherwise
+            the bird appears to die in mid-air above the strip. */}
+        <View style={[styles.ground, { height: Math.max(6, (1 - GROUND) * area.h) }]} />
+        {(() => {
+          const { halfW, halfH } = birdHitbox(area.w, area.h);
+          const iconSize = 2 * Math.min(halfW, halfH);
+          return (
+            <View style={[styles.bird, { width: halfW * 2, height: halfH * 2, left: BIRD_X * area.w - halfW, top: state.y * area.h - halfH }]}>
+              <Ionicons name="airplane" size={iconSize} color={Colors.accentGold} />
+            </View>
+          );
+        })()}
 
         {state.status === 'ready' && (
           <View style={styles.readyOverlay} pointerEvents="none">
             <Text style={styles.readyText}>TAP TO FLAP</Text>
-          </View>
-        )}
-        {state.status === 'over' && (
-          <View style={styles.overlay}>
-            <View style={styles.card}>
-              <Ionicons name="close-circle" size={40} color={Colors.accentCoral} />
-              <Text style={styles.resultTitle}>Game over</Text>
-              <Text style={styles.resultSub}>{`${state.score} pipes`}</Text>
-              <TouchableOpacity style={styles.primaryBtn} onPress={restart} activeOpacity={0.85}>
-                <Ionicons name="refresh" size={18} color={Colors.textInverse} />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
       </View>
@@ -132,11 +121,5 @@ const styles = StyleSheet.create({
   bird: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   readyOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   readyText: { color: Colors.primary, fontSize: 20, fontWeight: '900', letterSpacing: 2 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(32,33,36,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 300, backgroundColor: Colors.surface, borderRadius: 22, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  resultTitle: { color: Colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 10 },
-  resultSub: { color: Colors.textSecondary, fontSize: 16, fontWeight: '700', marginTop: 4, marginBottom: 18 },
-  primaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 26 },
-  primaryBtnText: { color: Colors.textInverse, fontSize: 15, fontWeight: '800' },
   hint: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 10 },
 });

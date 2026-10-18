@@ -159,11 +159,16 @@ const styles = StyleSheet.create({
   // ---- Grid variant ----
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
     marginBottom: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   artWrap: {
     width: '100%',
@@ -208,8 +213,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 10,
-    marginBottom: 10,
+    marginBottom: 12,
     minHeight: 104,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   artWrapList: {
     width: 84,
